@@ -33,6 +33,7 @@
 #include <syslog.h>
 #include <sys/epoll.h>
 #include "timer.h"
+#include "rbtree.h"
 
 /* Thread itself. */
 typedef struct _thread {
@@ -40,6 +41,7 @@ typedef struct _thread {
 	unsigned char type;		/* thread type */
 	struct _thread *next;		/* next pointer of the thread */
 	struct _thread *prev;		/* previous pointer of the thread */
+	struct rb_node node;            /* rbtree node */
 	struct _thread_master *master;	/* pointer to the struct thread_master. */
 	int (*func) (struct _thread *);	/* event function */
 	void *arg;			/* event argument */
@@ -63,14 +65,16 @@ typedef struct _thread_list {
 
 /* Master of the theads. */
 typedef struct _thread_master {
-	thread_list_t read;
-	thread_list_t write;
-	thread_list_t timer;
-	thread_list_t child;
+	struct rb_root read;
+	struct rb_root write;
+	struct rb_root timer;
+	struct rb_root child;
+
 	thread_list_t event;
 	thread_list_t ready;
 	thread_list_t unuse;
 	thread_list_t snmp;
+
 	int epollfd;
 	unsigned long alloc;
 } thread_master_t;
