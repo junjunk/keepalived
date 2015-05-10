@@ -90,15 +90,12 @@ get_thread_list(thread_t * thread)
 {
 	switch (thread->type) {
 	case THREAD_READ:
-		return &thread->master->read;
 	case THREAD_WRITE:
-		return &thread->master->write;
+	case THREAD_TIMER:
+	case THREAD_CHILD:
+		return NULL;
 	case THREAD_SNMP_FD:
 		return &thread->master->snmp;
-	case THREAD_TIMER:
-		return &thread->master->timer;
-	case THREAD_CHILD:
-		return &thread->master->child;
 	case THREAD_EVENT:
 		return &thread->master->event;
 	case THREAD_READY:
@@ -141,19 +138,23 @@ thread_list_add_before(thread_list_t * list, thread_t * point
 
 /* Add a thread in the list sorted by timeval */
 void
-thread_list_add_timeval(thread_list_t * list, thread_t * thread)
+thread_list_add_timeval(struct rb_root * root, thread_t * thread)
 {
-	thread_t *tt;
+	struct rb_node **new = &(root->rb_node), *parent = NULL;
 
-	for (tt = list->head; tt; tt = tt->next) {
-		if (timer_cmp(thread->sands, tt->sands) <= 0)
-			break;
+	/* Figure out where to put new node */
+	while (*new) {
+		thread_t *this = rb_entry(*new, thread_t, node);
+		parent = *new;
+		if (timer_cmp(thread->sands, this->sands) <= 0)
+			new = &((*new)->rb_left);
+		else
+			new = &((*new)->rb_right);
 	}
 
-	if (tt)
-		thread_list_add_before(list, tt, thread);
-	else
-		thread_list_add(list, thread);
+	/* Add new node and rebalance tree. */
+	rb_link_node(&thread->node, parent, new);
+	rb_insert_color(&thread->node, root);
 }
 
 /* Delete a thread from the list. */
@@ -237,14 +238,45 @@ thread_destroy_list(thread_master_t * m, thread_list_t thread_list)
 	}
 }
 
+/* Move list element to unuse queue */
+static void
+thread_destroy_tree(thread_master_t * m, struct rb_root * root)
+{
+	thread_t *t;
+	struct rb_node *node = rb_first(root);
+
+	while (node) {
+		t = rb_entry(node, thread_t, node);
+		node = rb_next(node);
+
+		if (t->type == THREAD_READY_FD ||
+		    t->type == THREAD_READ ||
+		    t->type == THREAD_WRITE ||
+		    t->type == THREAD_READ_TIMEOUT ||
+		    t->type == THREAD_WRITE_TIMEOUT)
+			close (t->u.fd);
+		else if (t->type == THREAD_SNMP_FD)
+			/* net-snmp seems to close its sockets before that,
+			 * so logging and assertion is not needed here */
+			epoll_ctl(t->master->epollfd, EPOLL_CTL_DEL
+				     , t->u.fd, NULL);
+
+		t->type = THREAD_UNUSED;
+		thread_add_unuse(m, t);
+	}
+	*root = RB_ROOT;
+}
+
 /* Cleanup master */
 static void
 thread_cleanup_master(thread_master_t * m)
 {
 	/* Unuse current thread lists */
-	thread_destroy_list(m, m->read);
-	thread_destroy_list(m, m->write);
-	thread_destroy_list(m, m->timer);
+	thread_destroy_tree(m, &m->read);
+	thread_destroy_tree(m, &m->write);
+	thread_destroy_tree(m, &m->timer);
+	thread_destroy_tree(m, &m->child);
+
 	thread_destroy_list(m, m->event);
 	thread_destroy_list(m, m->ready);
 	thread_destroy_list(m, m->snmp);
@@ -323,7 +355,7 @@ thread_add_io(unsigned char type, thread_master_t * m,
 	thread->sands = timer_add_long(time_now, timer);
 
 	/* Sort the thread. */
-	thread_list_add_timeval(get_thread_list(thread), thread);
+	thread_list_add_timeval((type == THREAD_READ ? &m->read : &m->write), thread);
 
 	return thread;
 }
@@ -457,6 +489,22 @@ thread_cancel(thread_t * thread)
 	list = get_thread_list(thread);
 	if (list)
 		thread_list_delete(list, thread);
+	else switch (thread->type)
+	{
+	case THREAD_READ:
+		rb_erase(&thread->node, &thread->master->read);
+		break;
+	case THREAD_WRITE:
+		rb_erase(&thread->node, &thread->master->write);
+		break;
+	case THREAD_TIMER:
+		rb_erase(&thread->node, &thread->master->timer);
+		break;
+	case THREAD_CHILD:
+		rb_erase(&thread->node, &thread->master->child);
+		break;
+	}
+
 	thread->type = THREAD_UNUSED;
 	thread_add_unuse(thread->master, thread);
 	return 0;
@@ -482,15 +530,18 @@ thread_cancel_event(thread_master_t * m, void *arg)
 
 /* Update timer value */
 static void
-thread_update_timer(thread_list_t *list, timeval_t *timer_min)
+thread_update_timer(struct rb_root *root, timeval_t *timer_min)
 {
-	if (list->head) {
+	struct rb_node *node = rb_first(root);
+
+	if (node) {
+		thread_t *t = rb_entry(node, thread_t, node);
 		if (!timer_isnull(*timer_min)) {
-			if (timer_cmp(list->head->sands, *timer_min) <= 0) {
-				*timer_min = list->head->sands;
+			if (timer_cmp(t->sands, *timer_min) <= 0) {
+				*timer_min = t->sands;
 			}
 		} else {
-			*timer_min = list->head->sands;
+			*timer_min = t->sands;
 		}
 	}
 }
@@ -512,14 +563,13 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 	if (!timer_isnull(timer_min)) {
 		timer_min = timer_sub(timer_min, time_now);
 		if (timer_min.tv_sec < 0) {
-			timer_min.tv_sec = timer_min.tv_usec = 0;
+			timer_reset(timer_min);
 		} else if (timer_min.tv_sec >= 1) {
 			timer_min.tv_sec = 1;
 			timer_min.tv_usec = 0;
 		}
 
-		timer_wait->tv_sec = timer_min.tv_sec;
-		timer_wait->tv_usec = timer_min.tv_usec;
+		*timer_wait = timer_min;
 	} else {
 		timer_wait->tv_sec = 1;
 		timer_wait->tv_usec = 0;
@@ -527,23 +577,18 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 }
 
 static void
-process_timeout_threads(thread_master_t *m, thread_list_t *list,
+process_timeout_threads(thread_master_t *m, struct rb_root *root,
 			unsigned char new_type)
 {
-	thread_t *thread = list->head;
+	struct rb_node *node;
+	thread_t *t;
 
-	while (thread) {
-		thread_t *t;
-
-		t = thread;
-		thread = t->next;
-
-		/* As list is sorted by thread timers, it is safe to
-		 * stop searching as soon as first pending thread found */
+	while ((node = rb_first(root))) {
+		t = rb_entry(node, thread_t, node);
 		if (timer_cmp(time_now, t->sands) < 0)
 			break;
+		rb_erase(node, root);
 
-		thread_list_delete(list, t);
 		if (t->type == THREAD_READ ||
 		    t->type == THREAD_WRITE
 		)
@@ -629,7 +674,7 @@ thread_fetch(thread_master_t * m, thread_t * fetch)
 	thread_t *thread;
 	timeval_t timer_wait;
 	int nevents, n;
-	struct epoll_event events[10];
+	struct epoll_event events[64];
 
 	assert(m != NULL);
 
@@ -712,7 +757,7 @@ retry:	/* When thread can't fetch try to find next thread again. */
 		}
 #endif
 		else {
-			thread_list_delete(get_thread_list(t), t);
+			rb_erase(&t->node, t->type == THREAD_READ ? &m->read : &m->write);
 			thread_list_add(&m->ready, t);
 			t->type = THREAD_READY_FD;
 			if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
@@ -760,12 +805,12 @@ void
 thread_child_handler(void * v, int sig)
 {
 	thread_master_t * m = v;
+	struct rb_node *node, *next;
 
 	/*
 	 * This is O(n^2), but there will only be a few entries on
 	 * this list.
 	 */
-	thread_t *thread;
 	pid_t pid;
 	int status;
 	while ((pid = waitpid(-1, &status, WNOHANG))) {
@@ -775,18 +820,18 @@ thread_child_handler(void * v, int sig)
 			DBG("waitpid error: %s", strerror(errno));
 			assert(0);
 		} else {
-			thread = m->child.head;
-			while (thread) {
-				thread_t *t;
-				t = thread;
-				thread = t->next;
+			node = rb_first(&m->child);
+			while (node) {
+				thread_t *t = rb_entry(node, thread_t, node);
+				next = rb_next(node);
 				if (pid == t->u.c.pid) {
-					thread_list_delete(&m->child, t);
+					rb_erase(node, &m->child);
 					t->u.c.status = status;
 					t->type = THREAD_READY;
 					thread_list_add(&m->ready, t);
 					break;
 				}
+				node = next;
 			}
 		}
 	}
