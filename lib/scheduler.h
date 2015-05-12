@@ -65,10 +65,7 @@ typedef struct _thread_list {
 
 /* Master of the theads. */
 typedef struct _thread_master {
-	struct rb_root read;
-	struct rb_root write;
-	struct rb_root timer;
-	struct rb_root child;
+	struct rb_root wait;
 
 	thread_list_t event;
 	thread_list_t ready;
