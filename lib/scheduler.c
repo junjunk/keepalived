@@ -85,28 +85,6 @@ do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)
 	return ret;
 }
 
-static thread_list_t *
-get_thread_list(thread_t * thread)
-{
-	switch (thread->type) {
-	case THREAD_READ:
-	case THREAD_WRITE:
-	case THREAD_TIMER:
-	case THREAD_CHILD:
-		return NULL;
-	case THREAD_SNMP_FD:
-		return &thread->master->snmp;
-	case THREAD_EVENT:
-		return &thread->master->event;
-	case THREAD_READY:
-	case THREAD_READY_FD:
-		return &thread->master->ready;
-	default:
-		assert(0);
-	}
-	return NULL;
-}
-
 /* Add a new thread to the list. */
 static void
 thread_list_add(thread_list_t * list, thread_t * thread)
@@ -137,8 +115,8 @@ thread_list_add_before(thread_list_t * list, thread_t * point
 }
 
 /* Add a thread in the list sorted by timeval */
-void
-thread_list_add_timeval(struct rb_root * root, thread_t * thread)
+static void
+thread_tree_add_timeval(struct rb_root * root, thread_t * thread)
 {
 	struct rb_node **new = &(root->rb_node), *parent = NULL;
 
@@ -272,11 +250,7 @@ static void
 thread_cleanup_master(thread_master_t * m)
 {
 	/* Unuse current thread lists */
-	thread_destroy_tree(m, &m->read);
-	thread_destroy_tree(m, &m->write);
-	thread_destroy_tree(m, &m->timer);
-	thread_destroy_tree(m, &m->child);
-
+	thread_destroy_tree(m, &m->wait);
 	thread_destroy_list(m, m->event);
 	thread_destroy_list(m, m->ready);
 	thread_destroy_list(m, m->snmp);
@@ -355,7 +329,7 @@ thread_add_io(unsigned char type, thread_master_t * m,
 	thread->sands = timer_add_long(time_now, timer);
 
 	/* Sort the thread. */
-	thread_list_add_timeval((type == THREAD_READ ? &m->read : &m->write), thread);
+	thread_tree_add_timeval(&m->wait, thread);
 
 	return thread;
 }
@@ -397,7 +371,7 @@ thread_add_timer(thread_master_t * m, int (*func) (thread_t *)
 	thread->sands = timer_add_long(time_now, timer);
 
 	/* Sort by timeval. */
-	thread_list_add_timeval(&m->timer, thread);
+	thread_tree_add_timeval(&m->wait, thread);
 
 	return thread;
 }
@@ -425,7 +399,7 @@ thread_add_child(thread_master_t * m, int (*func) (thread_t *)
 	thread->sands = timer_add_long(time_now, timer);
 
 	/* Sort by timeval. */
-	thread_list_add_timeval(&m->child, thread);
+	thread_tree_add_timeval(&m->wait, thread);
 
 	return thread;
 }
@@ -475,34 +449,35 @@ thread_add_terminate_event(thread_master_t * m)
 int
 thread_cancel(thread_t * thread)
 {
-	thread_list_t *list;
-
 	if (!thread)
 		return -1;
 
-	if (thread->type == THREAD_READ ||
-	    thread->type == THREAD_WRITE ||
-	    thread->type == THREAD_SNMP_FD)
+	switch (thread->type) {
+	case THREAD_READ:
+	case THREAD_WRITE:
 		if (do_epoll_ctl(thread->master->epollfd, EPOLL_CTL_DEL
 			         , thread->u.fd, NULL))
 			assert(0);
-	list = get_thread_list(thread);
-	if (list)
-		thread_list_delete(list, thread);
-	else switch (thread->type)
-	{
-	case THREAD_READ:
-		rb_erase(&thread->node, &thread->master->read);
-		break;
-	case THREAD_WRITE:
-		rb_erase(&thread->node, &thread->master->write);
-		break;
+		/* fall-through */
 	case THREAD_TIMER:
-		rb_erase(&thread->node, &thread->master->timer);
-		break;
 	case THREAD_CHILD:
-		rb_erase(&thread->node, &thread->master->child);
+		rb_erase(&thread->node, &thread->master->wait);
 		break;
+	case THREAD_SNMP_FD:
+		if (do_epoll_ctl(thread->master->epollfd, EPOLL_CTL_DEL
+			         , thread->u.fd, NULL))
+			assert(0);
+		thread_list_delete(&thread->master->snmp, thread);
+		break;
+	case THREAD_EVENT:
+		thread_list_delete(&thread->master->event, thread);
+		break;
+	case THREAD_READY:
+	case THREAD_READY_FD:
+		thread_list_delete(&thread->master->ready, thread);
+		break;
+	default:
+		assert(0);
 	}
 
 	thread->type = THREAD_UNUSED;
@@ -529,7 +504,7 @@ thread_cancel_event(thread_master_t * m, void *arg)
 }
 
 /* Update timer value */
-static void
+static inline void
 thread_update_timer(struct rb_root *root, timeval_t *timer_min)
 {
 	struct rb_node *node = rb_first(root);
@@ -554,10 +529,7 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 
 	/* Prepare timer */
 	timer_reset(timer_min);
-	thread_update_timer(&m->timer, &timer_min);
-	thread_update_timer(&m->write, &timer_min);
-	thread_update_timer(&m->read, &timer_min);
-	thread_update_timer(&m->child, &timer_min);
+	thread_update_timer(&m->wait, &timer_min);
 
 	/* Take care about monothonic clock */
 	if (!timer_isnull(timer_min)) {
@@ -577,10 +549,10 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 }
 
 static void
-process_timeout_threads(thread_master_t *m, struct rb_root *root,
-			unsigned char new_type)
+process_timeout_threads(thread_master_t *m)
 {
 	struct rb_node *node;
+	struct rb_root *root = &m->wait;
 	thread_t *t;
 
 	while ((node = rb_first(root))) {
@@ -589,13 +561,29 @@ process_timeout_threads(thread_master_t *m, struct rb_root *root,
 			break;
 		rb_erase(node, root);
 
-		if (t->type == THREAD_READ ||
-		    t->type == THREAD_WRITE
-		)
+		switch (t->type) {
+		case THREAD_READ:
+			t->type = THREAD_READ_TIMEOUT;
 			if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
 					 , t->u.fd, NULL))
 				assert(0);
-		t->type = new_type;
+			break;
+		case THREAD_WRITE:
+			t->type = THREAD_WRITE_TIMEOUT;
+			if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
+					 , t->u.fd, NULL))
+				assert(0);
+			break;
+		case THREAD_CHILD:
+			t->type = THREAD_CHILD_TIMEOUT;
+			break;
+		case THREAD_TIMER:
+			t->type = THREAD_READY;
+			break;
+		default:
+			assert(0);
+		}
+
 		thread_list_add(&m->ready, t);
 	}
 }
@@ -737,9 +725,6 @@ retry:	/* When thread can't fetch try to find next thread again. */
 	/* Update current time */
 	set_time_now();
 
-	/* Timeout children */
-	process_timeout_threads (m, &m->child, THREAD_CHILD_TIMEOUT);
-
 	/* turn pending read/write theads into ready. */
 	for (n = 0; n < nevents; ++n) {
 		thread_t *t = events[n].data.ptr;
@@ -757,7 +742,7 @@ retry:	/* When thread can't fetch try to find next thread again. */
 		}
 #endif
 		else {
-			rb_erase(&t->node, t->type == THREAD_READ ? &m->read : &m->write);
+			rb_erase(&t->node, &m->wait);
 			thread_list_add(&m->ready, t);
 			t->type = THREAD_READY_FD;
 			if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
@@ -766,12 +751,8 @@ retry:	/* When thread can't fetch try to find next thread again. */
 		}
 	}
 
-	/* process timed-out IO. */
-	process_timeout_threads (m, &m->read, THREAD_READ_TIMEOUT);
-	process_timeout_threads (m, &m->write, THREAD_WRITE_TIMEOUT);
-
-	/* Timer thread. */
-	process_timeout_threads (m, &m->timer, THREAD_READY);
+	/* process timed-out IO, child wait, timers. */
+	process_timeout_threads(m);
 
 	/* Return one event. */
 	thread = thread_trim_head(&m->ready);
@@ -820,12 +801,15 @@ thread_child_handler(void * v, int sig)
 			DBG("waitpid error: %s", strerror(errno));
 			assert(0);
 		} else {
-			node = rb_first(&m->child);
+			/* full tree traversal. Maybe we should have a
+			 * separate child/pid tree ? */
+			node = rb_first(&m->wait);
 			while (node) {
 				thread_t *t = rb_entry(node, thread_t, node);
 				next = rb_next(node);
-				if (pid == t->u.c.pid) {
-					rb_erase(node, &m->child);
+				if (t->type == THREAD_CHILD &&
+				    pid == t->u.c.pid) {
+					rb_erase(node, &m->wait);
 					t->u.c.status = status;
 					t->type = THREAD_READY;
 					thread_list_add(&m->ready, t);
