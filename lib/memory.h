@@ -67,5 +67,6 @@ extern void keepalived_free_final(char *);
 
 /* Common defines */
 #define FREE_PTR(P) if((P)) FREE((P));
+#define ARRAY_LEN(A) (sizeof((A)) / sizeof((A)[0]))
 
 #endif

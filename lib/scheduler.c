@@ -29,6 +29,7 @@
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/agent/snmp_vars.h>
 #undef FREE
+extern int snmp;
 #endif
 
 #include <signal.h>
@@ -50,9 +51,63 @@ thread_master_t *
 thread_make_master(void)
 {
 	thread_master_t *new;
+	int epollfd;
 
 	new = (thread_master_t *) MALLOC(sizeof (thread_master_t));
+	epollfd = epoll_create1(0);
+	if (epollfd == -1)
+	{
+		log_message(LOG_ERR, "epoll_create1: %s", strerror(errno));
+		assert(0);
+	}
+	new->epollfd = epollfd;
 	return new;
+}
+
+/* error-logging wrapper around epoll_ctl */
+static int
+do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *event)
+{
+	static struct epoll_event dummy_ev =
+	{
+		.events = 0,
+		.data = {.ptr = NULL}
+	};
+
+	int ret = epoll_ctl(epfd, op, fd, event ? event : &dummy_ev);
+	if (-1 == ret && __test_bit(LOG_DETAIL_BIT, &debug))
+		log_message (
+			LOG_ERR, "epoll_ctl: can't %s fd %d: %s",
+			op == EPOLL_CTL_ADD ? "add" : "remove",
+			fd, strerror(errno)
+		);
+
+	return ret;
+}
+
+static thread_list_t *
+get_thread_list(thread_t * thread)
+{
+	switch (thread->type) {
+	case THREAD_READ:
+		return &thread->master->read;
+	case THREAD_WRITE:
+		return &thread->master->write;
+	case THREAD_SNMP_FD:
+		return &thread->master->snmp;
+	case THREAD_TIMER:
+		return &thread->master->timer;
+	case THREAD_CHILD:
+		return &thread->master->child;
+	case THREAD_EVENT:
+		return &thread->master->event;
+	case THREAD_READY:
+	case THREAD_READY_FD:
+		return &thread->master->ready;
+	default:
+		assert(0);
+	}
+	return NULL;
 }
 
 /* Add a new thread to the list. */
@@ -71,7 +126,8 @@ thread_list_add(thread_list_t * list, thread_t * thread)
 
 /* Add a new thread to the list. */
 void
-thread_list_add_before(thread_list_t * list, thread_t * point, thread_t * thread)
+thread_list_add_before(thread_list_t * list, thread_t * point
+		       , thread_t * thread)
 {
 	thread->next = point;
 	thread->prev = point->prev;
@@ -169,6 +225,11 @@ thread_destroy_list(thread_master_t * m, thread_list_t thread_list)
 		    t->type == THREAD_READ_TIMEOUT ||
 		    t->type == THREAD_WRITE_TIMEOUT)
 			close (t->u.fd);
+		else if (t->type == THREAD_SNMP_FD)
+			/* net-snmp seems to close its sockets before that,
+			 * so logging and assertion is not needed here */
+			epoll_ctl(t->master->epollfd, EPOLL_CTL_DEL
+				     , t->u.fd, NULL);
 
 		thread_list_delete(&thread_list, t);
 		t->type = THREAD_UNUSED;
@@ -186,11 +247,12 @@ thread_cleanup_master(thread_master_t * m)
 	thread_destroy_list(m, m->timer);
 	thread_destroy_list(m, m->event);
 	thread_destroy_list(m, m->ready);
+	thread_destroy_list(m, m->snmp);
 
 	/* Clear all FDs */
-	FD_ZERO(&m->readfd);
-	FD_ZERO(&m->writefd);
-	FD_ZERO(&m->exceptfd);
+	if (m->epollfd >= 0)
+		close(m->epollfd);
+	m->epollfd = -1;
 
 	/* Clean garbage */
 	thread_clean_unuse(m);
@@ -231,37 +293,47 @@ thread_new(thread_master_t * m)
 	return new;
 }
 
-/* Add new read thread. */
-thread_t *
-thread_add_read(thread_master_t * m, int (*func) (thread_t *)
-		, void *arg, int fd, long timer)
+static thread_t *
+thread_add_io(unsigned char type, thread_master_t * m,
+	      int (*func) (thread_t *) , void *arg, int fd, long timer)
 {
 	thread_t *thread;
+	struct epoll_event ev;
 
 	assert(m != NULL);
 
-	if (FD_ISSET(fd, &m->readfd)) {
-		log_message(LOG_WARNING, "There is already read fd [%d]", fd);
-		return NULL;
-	}
-
 	thread = thread_new(m);
-	thread->type = THREAD_READ;
+	thread->type = type;
 	thread->id = 0;
 	thread->master = m;
 	thread->func = func;
 	thread->arg = arg;
-	FD_SET(fd, &m->readfd);
 	thread->u.fd = fd;
+
+	ev.events = type == THREAD_READ ? EPOLLIN : EPOLLOUT;
+	ev.data.ptr = thread;
+	if (do_epoll_ctl(m->epollfd, EPOLL_CTL_ADD, fd, &ev) == -1) {
+		thread->type = THREAD_UNUSED;
+		thread_add_unuse(m, thread);
+		return NULL;
+	}
 
 	/* Compute read timeout value */
 	set_time_now();
 	thread->sands = timer_add_long(time_now, timer);
 
 	/* Sort the thread. */
-	thread_list_add_timeval(&m->read, thread);
+	thread_list_add_timeval(get_thread_list(thread), thread);
 
 	return thread;
+}
+
+/* Add new read thread. */
+thread_t *
+thread_add_read(thread_master_t * m, int (*func) (thread_t *)
+		, void *arg, int fd, long timer)
+{
+	return thread_add_io(THREAD_READ, m, func, arg, fd, timer);
 }
 
 /* Add new write thread. */
@@ -269,32 +341,7 @@ thread_t *
 thread_add_write(thread_master_t * m, int (*func) (thread_t *)
 		 , void *arg, int fd, long timer)
 {
-	thread_t *thread;
-
-	assert(m != NULL);
-
-	if (FD_ISSET(fd, &m->writefd)) {
-		log_message(LOG_WARNING, "There is already write fd [%d]", fd);
-		return NULL;
-	}
-
-	thread = thread_new(m);
-	thread->type = THREAD_WRITE;
-	thread->id = 0;
-	thread->master = m;
-	thread->func = func;
-	thread->arg = arg;
-	FD_SET(fd, &m->writefd);
-	thread->u.fd = fd;
-
-	/* Compute write timeout value */
-	set_time_now();
-	thread->sands = timer_add_long(time_now, timer);
-
-	/* Sort the thread. */
-	thread_list_add_timeval(&m->write, thread);
-
-	return thread;
+	return thread_add_io(THREAD_WRITE, m, func, arg, fd, timer);
 }
 
 /* Add timer event thread. */
@@ -396,41 +443,20 @@ thread_add_terminate_event(thread_master_t * m)
 int
 thread_cancel(thread_t * thread)
 {
+	thread_list_t *list;
+
 	if (!thread)
 		return -1;
 
-	switch (thread->type) {
-	case THREAD_READ:
-		assert(FD_ISSET(thread->u.fd, &thread->master->readfd));
-		FD_CLR(thread->u.fd, &thread->master->readfd);
-		thread_list_delete(&thread->master->read, thread);
-		break;
-	case THREAD_WRITE:
-		assert(FD_ISSET(thread->u.fd, &thread->master->writefd));
-		FD_CLR(thread->u.fd, &thread->master->writefd);
-		thread_list_delete(&thread->master->write, thread);
-		break;
-	case THREAD_TIMER:
-		thread_list_delete(&thread->master->timer, thread);
-		break;
-	case THREAD_CHILD:
-		/* Does this need to kill the child, or is that the
-		 * caller's job?
-		 * This function is currently unused, so leave it for now.
-		 */
-		thread_list_delete(&thread->master->child, thread);
-		break;
-	case THREAD_EVENT:
-		thread_list_delete(&thread->master->event, thread);
-		break;
-	case THREAD_READY:
-	case THREAD_READY_FD:
-		thread_list_delete(&thread->master->ready, thread);
-		break;
-	default:
-		break;
-	}
-
+	if (thread->type == THREAD_READ ||
+	    thread->type == THREAD_WRITE ||
+	    thread->type == THREAD_SNMP_FD)
+		if (do_epoll_ctl(thread->master->epollfd, EPOLL_CTL_DEL
+			         , thread->u.fd, NULL))
+			assert(0);
+	list = get_thread_list(thread);
+	if (list)
+		thread_list_delete(list, thread);
 	thread->type = THREAD_UNUSED;
 	thread_add_unuse(thread->master, thread);
 	return 0;
@@ -449,11 +475,8 @@ thread_cancel_event(thread_master_t * m, void *arg)
 		t = thread;
 		thread = t->next;
 
-		if (t->arg == arg) {
-			thread_list_delete(&m->event, t);
-			t->type = THREAD_UNUSED;
-			thread_add_unuse(m, t);
-		}
+		if (t->arg == arg)
+			thread_cancel(t);
 	}
 }
 
@@ -503,22 +526,110 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 	}
 }
 
+static void
+process_timeout_threads(thread_master_t *m, thread_list_t *list,
+			unsigned char new_type)
+{
+	thread_t *thread = list->head;
+
+	while (thread) {
+		thread_t *t;
+
+		t = thread;
+		thread = t->next;
+
+		/* As list is sorted by thread timers, it is safe to
+		 * stop searching as soon as first pending thread found */
+		if (timer_cmp(time_now, t->sands) < 0)
+			break;
+
+		thread_list_delete(list, t);
+		if (t->type == THREAD_READ ||
+		    t->type == THREAD_WRITE
+		)
+			if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
+					 , t->u.fd, NULL))
+				assert(0);
+		t->type = new_type;
+		thread_list_add(&m->ready, t);
+	}
+}
+
+static void
+register_signal_reader(thread_master_t * m)
+{
+	int signal_fd;
+	struct epoll_event ev;
+
+	signal_fd = signal_rfd();
+	ev.events = EPOLLIN;
+	ev.data.ptr = NULL; /* special value indicating signal pipe */
+	if (do_epoll_ctl(m->epollfd, EPOLL_CTL_ADD, signal_fd, &ev))
+		assert(0);
+}
+
+#ifdef _WITH_SNMP_
+static void
+prepare_snmp_epoll(thread_master_t * m, timeval_t * timer_wait)
+{
+	timeval_t snmp_timer_wait;
+	int fdsetsize = FD_SETSIZE;
+	/* fd_set for iterate over it */
+	long readfd[FD_SETSIZE / (8 * sizeof(long))];
+	long n;
+	int snmpblock = 0;
+	int i, fd, bit;
+	struct epoll_event ev;
+	thread_t *t;
+
+	/* When SNMP is enabled, we may have to epoll on additional
+	 * FD. snmp_select_info() will add them to `readfd'. The trick
+	 * with this function is its last argument. We need to set it
+	 * to 0 and we need to use the provided new timer only if it
+	 * is still set to 0. */
+	memcpy(&snmp_timer_wait, timer_wait, sizeof(timeval_t));
+	memset(readfd, 0, sizeof (readfd));
+	int ret = snmp_select_info(&fdsetsize, (fd_set *)&readfd
+				   , &snmp_timer_wait, &snmpblock);
+	if (! ret)
+		return;
+	if (snmpblock == 0)
+		memcpy(timer_wait, &snmp_timer_wait, sizeof(timeval_t));
+
+	/* iterate over readfd and register read preudo-threads */
+	for(i = 0; ret && (i < ARRAY_LEN(readfd)); i++) {
+		if ((n = readfd[i])) {
+			fd = i * sizeof(long) * 8;
+			do {
+				bit = ffsl(n);
+				n >>= bit;
+				fd += bit;
+
+				t = thread_new(m);
+				t->master = m;
+				t->type = THREAD_SNMP_FD;
+				t->u.fd = fd - 1;
+				thread_list_add(&m->snmp, t);
+				ev.events = EPOLLIN;
+				ev.data.ptr = t;
+				if (do_epoll_ctl(m->epollfd, EPOLL_CTL_ADD
+						 , t->u.fd, &ev))
+					assert(0);
+				--ret;
+			} while (n);
+		}
+	}
+}
+#endif
+
 /* Fetch next ready thread. */
 thread_t *
 thread_fetch(thread_master_t * m, thread_t * fetch)
 {
-	int ret, old_errno;
 	thread_t *thread;
-	fd_set readfd;
-	fd_set writefd;
-	fd_set exceptfd;
 	timeval_t timer_wait;
-	int signal_fd;
-#ifdef _WITH_SNMP_
-	timeval_t snmp_timer_wait;
-	int snmpblock = 0;
-	int fdsetsize;
-#endif
+	int nevents, n;
+	struct epoll_event events[10];
 
 	assert(m != NULL);
 
@@ -557,144 +668,80 @@ retry:	/* When thread can't fetch try to find next thread again. */
 	set_time_now();
 	thread_compute_timer(m, &timer_wait);
 
-	/* Call select function. */
-	readfd = m->readfd;
-	writefd = m->writefd;
-	exceptfd = m->exceptfd;
-
-	signal_fd = signal_rfd();
-	FD_SET(signal_fd, &readfd);
-
 #ifdef _WITH_SNMP_
-	/* When SNMP is enabled, we may have to select() on additional
-	 * FD. snmp_select_info() will add them to `readfd'. The trick
-	 * with this function is its last argument. We need to set it
-	 * to 0 and we need to use the provided new timer only if it
-	 * is still set to 0. */
-	fdsetsize = FD_SETSIZE;
-	snmpblock = 0;
-	memcpy(&snmp_timer_wait, &timer_wait, sizeof(timeval_t));
-	snmp_select_info(&fdsetsize, &readfd, &snmp_timer_wait, &snmpblock);
-	if (snmpblock == 0)
-		memcpy(&timer_wait, &snmp_timer_wait, sizeof(timeval_t));
+	int snmp_events = 0;
+	fd_set snmp_fdset;
+
+	if (snmp) {
+		while (m->snmp.head)
+			thread_cancel(m->snmp.head);
+		prepare_snmp_epoll(m, &timer_wait);
+	}
 #endif
 
-	ret = select(FD_SETSIZE, &readfd, &writefd, &exceptfd, &timer_wait);
-
-	/* we have to save errno here because the next syscalls will set it */
-	old_errno = errno;
-
-       /* Handle SNMP stuff */
-#ifdef _WITH_SNMP_
-	if (ret > 0)
-		snmp_read(&readfd);
-	else if (ret == 0)
-		snmp_timeout();
-#endif
-
-	/* handle signals synchronously, including child reaping */
-	if (FD_ISSET(signal_fd, &readfd))
-		signal_run_callback();
+	nevents = epoll_wait(m->epollfd, events, ARRAY_LEN(events)
+			     , timer_milli(timer_wait));
+	if (nevents < 0) {
+		if (errno == EINTR)
+			goto retry;
+		/* Real error. */
+		DBG("epoll_wait error: %s", strerror(errno));
+		assert(0);
+	}
 
 	/* Update current time */
 	set_time_now();
 
-	if (ret < 0) {
-		if (old_errno == EINTR)
-			goto retry;
-		/* Real error. */
-		DBG("select error: %s", strerror(old_errno));
-		assert(0);
-	}
-
 	/* Timeout children */
-	thread = m->child.head;
-	while (thread) {
-		thread_t *t;
+	process_timeout_threads (m, &m->child, THREAD_CHILD_TIMEOUT);
 
-		t = thread;
-		thread = t->next;
-
-		if (timer_cmp(time_now, t->sands) >= 0) {
-			thread_list_delete(&m->child, t);
-			thread_list_add(&m->ready, t);
-			t->type = THREAD_CHILD_TIMEOUT;
-		} else
-			break;
-	}
-
-	/* Read thead. */
-	thread = m->read.head;
-	while (thread) {
-		thread_t *t;
-
-		t = thread;
-		thread = t->next;
-
-		if (FD_ISSET(t->u.fd, &readfd)) {
-			assert(FD_ISSET(t->u.fd, &m->readfd));
-			FD_CLR(t->u.fd, &m->readfd);
-			thread_list_delete(&m->read, t);
+	/* turn pending read/write theads into ready. */
+	for (n = 0; n < nevents; ++n) {
+		thread_t *t = events[n].data.ptr;
+		if (! t) {
+			/* handle signals synchronously,
+			 * including child reaping */
+			signal_run_callback();
+		}
+#ifdef _WITH_SNMP_
+		else if (t->type == THREAD_SNMP_FD) {
+			if (! snmp_events)
+				FD_ZERO(&snmp_fdset);
+			FD_SET(t->u.fd, &snmp_fdset);
+			++snmp_events;
+		}
+#endif
+		else {
+			thread_list_delete(get_thread_list(t), t);
 			thread_list_add(&m->ready, t);
 			t->type = THREAD_READY_FD;
-		} else {
-			if (timer_cmp(time_now, t->sands) >= 0) {
-				FD_CLR(t->u.fd, &m->readfd);
-				thread_list_delete(&m->read, t);
-				thread_list_add(&m->ready, t);
-				t->type = THREAD_READ_TIMEOUT;
-			}
+			if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
+					 , t->u.fd, NULL))
+				assert(0);
 		}
 	}
 
-	/* Write thead. */
-	thread = m->write.head;
-	while (thread) {
-		thread_t *t;
+	/* process timed-out IO. */
+	process_timeout_threads (m, &m->read, THREAD_READ_TIMEOUT);
+	process_timeout_threads (m, &m->write, THREAD_WRITE_TIMEOUT);
 
-		t = thread;
-		thread = t->next;
-
-		if (FD_ISSET(t->u.fd, &writefd)) {
-			assert(FD_ISSET(t->u.fd, &writefd));
-			FD_CLR(t->u.fd, &m->writefd);
-			thread_list_delete(&m->write, t);
-			thread_list_add(&m->ready, t);
-			t->type = THREAD_READY_FD;
-		} else {
-			if (timer_cmp(time_now, t->sands) >= 0) {
-				FD_CLR(t->u.fd, &m->writefd);
-				thread_list_delete(&m->write, t);
-				thread_list_add(&m->ready, t);
-				t->type = THREAD_WRITE_TIMEOUT;
-			}
-		}
-	}
-	/* Exception thead. */
-	/*... */
-
-	/* Timer update. */
-	thread = m->timer.head;
-	while (thread) {
-		thread_t *t;
-
-		t = thread;
-		thread = t->next;
-
-		if (timer_cmp(time_now, t->sands) >= 0) {
-			thread_list_delete(&m->timer, t);
-			thread_list_add(&m->ready, t);
-			t->type = THREAD_READY;
-		} else
-			break;
-	}
+	/* Timer thread. */
+	process_timeout_threads (m, &m->timer, THREAD_READY);
 
 	/* Return one event. */
 	thread = thread_trim_head(&m->ready);
 
 #ifdef _WITH_SNMP_
-	run_alarms();
-	netsnmp_check_outstanding_agent_requests();
+	if (snmp) {
+		if (snmp_events > 0)
+			snmp_read(&snmp_fdset);
+		else if (nevents == 0)
+			snmp_timeout();
+		run_alarms();
+		netsnmp_check_outstanding_agent_requests();
+		while (m->snmp.head)
+			thread_cancel(m->snmp.head);
+	}
 #endif
 
 	/* There is no ready thread. */
@@ -769,6 +816,7 @@ launch_scheduler(void)
 	thread_t thread;
 
 	signal_set(SIGCHLD, thread_child_handler, master);
+	register_signal_reader(master);
 
 	/*
 	 * Processing the master thread queues,
