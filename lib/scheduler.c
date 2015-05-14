@@ -255,6 +255,11 @@ thread_cleanup_master(thread_master_t * m)
 	thread_destroy_list(m, m->ready);
 	thread_destroy_list(m, m->snmp);
 
+	/*
+	 * We do not need to clean up lists in child_hash, because those
+	 * threads have been already recycled by thread_destroy_tree.
+	 */
+
 	/* Clear all FDs */
 	if (m->epollfd >= 0)
 		close(m->epollfd);
@@ -401,6 +406,10 @@ thread_add_child(thread_master_t * m, int (*func) (thread_t *)
 	/* Sort by timeval. */
 	thread_tree_add_timeval(&m->wait, thread);
 
+	/* Add thread to pid hash
+	 * to quickly lookup it in the SIGCHLD handler. */
+	thread_list_add(&m->child_hash[pid % PID_HASHSIZE], thread);
+
 	return thread;
 }
 
@@ -449,39 +458,46 @@ thread_add_terminate_event(thread_master_t * m)
 int
 thread_cancel(thread_t * thread)
 {
+	thread_master_t *m;
+
 	if (!thread)
 		return -1;
+	m = thread->master;
 
 	switch (thread->type) {
 	case THREAD_READ:
 	case THREAD_WRITE:
-		if (do_epoll_ctl(thread->master->epollfd, EPOLL_CTL_DEL
+		if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
 			         , thread->u.fd, NULL))
 			assert(0);
 		/* fall-through */
 	case THREAD_TIMER:
+		rb_erase(&thread->node, &m->wait);
+		break;
 	case THREAD_CHILD:
-		rb_erase(&thread->node, &thread->master->wait);
+		rb_erase(&thread->node, &m->wait);
+		thread_list_delete(&m->child_hash[thread->u.c.pid % PID_HASHSIZE]
+				   , thread);
 		break;
 	case THREAD_SNMP_FD:
-		if (do_epoll_ctl(thread->master->epollfd, EPOLL_CTL_DEL
+		if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
 			         , thread->u.fd, NULL))
 			assert(0);
-		thread_list_delete(&thread->master->snmp, thread);
+		thread_list_delete(&m->snmp, thread);
 		break;
 	case THREAD_EVENT:
-		thread_list_delete(&thread->master->event, thread);
+		thread_list_delete(&m->event, thread);
 		break;
 	case THREAD_READY:
 	case THREAD_READY_FD:
-		thread_list_delete(&thread->master->ready, thread);
+		thread_list_delete(&m->ready, thread);
 		break;
 	default:
 		assert(0);
 	}
 
 	thread->type = THREAD_UNUSED;
-	thread_add_unuse(thread->master, thread);
+	thread_add_unuse(m, thread);
 	return 0;
 }
 
@@ -576,6 +592,8 @@ process_timeout_threads(thread_master_t *m)
 			break;
 		case THREAD_CHILD:
 			t->type = THREAD_CHILD_TIMEOUT;
+			thread_list_delete(
+				&m->child_hash[t->u.c.pid % PID_HASHSIZE], t);
 			break;
 		case THREAD_TIMER:
 			t->type = THREAD_READY;
@@ -786,7 +804,8 @@ void
 thread_child_handler(void * v, int sig)
 {
 	thread_master_t * m = v;
-	struct rb_node *node, *next;
+	thread_list_t *list;
+	thread_t *t;
 
 	/*
 	 * This is O(n^2), but there will only be a few entries on
@@ -801,21 +820,18 @@ thread_child_handler(void * v, int sig)
 			DBG("waitpid error: %s", strerror(errno));
 			assert(0);
 		} else {
-			/* full tree traversal. Maybe we should have a
-			 * separate child/pid tree ? */
-			node = rb_first(&m->wait);
-			while (node) {
-				thread_t *t = rb_entry(node, thread_t, node);
-				next = rb_next(node);
-				if (t->type == THREAD_CHILD &&
-				    pid == t->u.c.pid) {
-					rb_erase(node, &m->wait);
+			list = &m->child_hash[pid % PID_HASHSIZE];
+			t = list->head;
+			while (t) {
+				if (pid == t->u.c.pid) {
+					rb_erase(&t->node, &m->wait);
+					thread_list_delete(list, t);
 					t->u.c.status = status;
 					t->type = THREAD_READY;
 					thread_list_add(&m->ready, t);
 					break;
-				}
-				node = next;
+				} else
+					t = t->next;
 			}
 		}
 	}
