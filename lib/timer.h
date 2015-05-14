@@ -38,6 +38,7 @@ extern timeval_t time_now;
 
 /* Some usefull macros */
 #define timer_sec(T) ((T).tv_sec)
+#define timer_milli(T) ((T).tv_sec * TIMER_HZ / 1000 + (T).tv_usec / 1000)
 #define timer_long(T) ((T).tv_sec * TIMER_HZ + (T).tv_usec)
 #define timer_isnull(T) ((T).tv_sec == 0 && (T).tv_usec == 0)
 #define timer_reset(T) (memset(&(T), 0, sizeof(timeval_t)))

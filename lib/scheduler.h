@@ -31,6 +31,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <syslog.h>
+#include <sys/epoll.h>
 #include "timer.h"
 
 /* Thread itself. */
@@ -69,9 +70,8 @@ typedef struct _thread_master {
 	thread_list_t event;
 	thread_list_t ready;
 	thread_list_t unuse;
-	fd_set readfd;
-	fd_set writefd;
-	fd_set exceptfd;
+	thread_list_t snmp;
+	int epollfd;
 	unsigned long alloc;
 } thread_master_t;
 
@@ -88,6 +88,7 @@ typedef struct _thread_master {
 #define THREAD_CHILD_TIMEOUT	9
 #define THREAD_TERMINATE	10
 #define THREAD_READY_FD		11
+#define THREAD_SNMP_FD		12
 
 /* MICRO SEC def */
 #define BOOTSTRAP_DELAY TIMER_HZ
