@@ -63,6 +63,8 @@ typedef struct _thread_list {
 	int count;
 } thread_list_t;
 
+#define PID_HASHSIZE 64
+
 /* Master of the theads. */
 typedef struct _thread_master {
 	struct rb_root wait;
@@ -71,6 +73,8 @@ typedef struct _thread_master {
 	thread_list_t ready;
 	thread_list_t unuse;
 	thread_list_t snmp;
+
+	thread_list_t child_hash[PID_HASHSIZE];
 
 	int epollfd;
 	unsigned long alloc;
