@@ -26,6 +26,7 @@
 #include "pidfile.h"
 #include "bitops.h"
 #include "logger.h"
+#include "scheduler.h"
 
 /* global var */
 char *conf_file = NULL;		/* Configuration file */
@@ -38,7 +39,6 @@ char *main_pidfile = KEEPALIVED_PID_FILE;	/* overrule default pidfile */
 char *checkers_pidfile = CHECKERS_PID_FILE;	/* overrule default pidfile */
 char *vrrp_pidfile = VRRP_PID_FILE;	/* overrule default pidfile */
 #ifdef _WITH_SNMP_
-int snmp = 0;			/* Enable SNMP support */
 const char *snmp_socket = NULL;	/* Socket to use for SNMP agent */
 #endif
 
@@ -251,7 +251,7 @@ parse_cmdline(int argc, char **argv)
 			break;
 #ifdef _WITH_SNMP_
 		case 'x':
-			snmp = 1;
+			snmp_enable = 1;
 			break;
 		case 'A':
 			snmp_socket = optarg;

@@ -60,7 +60,7 @@ stop_check(void)
 		clear_services();
 	ipvs_stop();
 #ifdef _WITH_SNMP_
-	if (snmp)
+	if (snmp_enable)
 		check_snmp_agent_close();
 #endif
 
@@ -101,7 +101,7 @@ start_check(void)
 	kernel_netlink_init();
 #endif
 #ifdef _WITH_SNMP_
-	if (!reload && snmp)
+	if (!reload && snmp_enable)
 		check_snmp_agent_init(snmp_socket);
 #endif
 

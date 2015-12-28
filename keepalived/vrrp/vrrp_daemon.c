@@ -67,7 +67,7 @@ stop_vrrp(void)
 	netlink_iplist(vrrp_data->static_addresses, IPADDRESS_DEL);
 
 #ifdef _WITH_SNMP_
-	if (snmp)
+	if (snmp_enable)
 		vrrp_snmp_agent_close();
 #endif
 
@@ -126,7 +126,7 @@ start_vrrp(void)
 	gratuitous_arp_init();
 	ndisc_init();
 #ifdef _WITH_SNMP_
-	if (!reload && snmp)
+	if (!reload && snmp_enable)
 		vrrp_snmp_agent_init(snmp_socket);
 #endif
 

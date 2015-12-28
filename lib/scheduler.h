@@ -108,6 +108,9 @@ typedef struct _thread_master {
 
 /* global vars exported */
 extern thread_master_t *master;
+#ifdef _WITH_SNMP_
+extern int snmp_enable;
+#endif
 
 /* Prototypes. */
 extern thread_master_t *thread_make_master(void);

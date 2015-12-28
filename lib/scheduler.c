@@ -29,7 +29,7 @@
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 #include <net-snmp/agent/snmp_vars.h>
 #undef FREE
-extern int snmp;
+int snmp_enable = 0; /* Enable SNMP support */
 #endif
 
 #include <signal.h>
@@ -723,7 +723,7 @@ retry:	/* When thread can't fetch try to find next thread again. */
 	int snmp_events = 0;
 	fd_set snmp_fdset;
 
-	if (snmp) {
+	if (snmp_enable) {
 		while (m->snmp.head)
 			thread_cancel(m->snmp.head);
 		prepare_snmp_epoll(m, &timer_wait);
@@ -776,7 +776,7 @@ retry:	/* When thread can't fetch try to find next thread again. */
 	thread = thread_trim_head(&m->ready);
 
 #ifdef _WITH_SNMP_
-	if (snmp) {
+	if (snmp_enable) {
 		if (snmp_events > 0)
 			snmp_read(&snmp_fdset);
 		else if (nevents == 0)
