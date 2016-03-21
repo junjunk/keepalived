@@ -72,7 +72,7 @@ dump_conn_opts (conn_opts_t *conn)
 	if (conn->fwmark != 0)
 		log_message(LOG_INFO, "   Connection mark = %u", conn->fwmark);
 #endif
-	log_message(LOG_INFO, "   Connection timeout = %d", conn->connection_to/TIMER_HZ);
+	log_message(LOG_INFO, "   Connection timeout = %f", ((double) conn->connection_to)/TIMER_HZ);
 }
 
 /* Queue a checker into the checkers_queue */
@@ -177,7 +177,7 @@ static void
 co_timeout_handler(vector_t *strvec)
 {
 	conn_opts_t *co = CHECKER_GET_CO();
-	co->connection_to = CHECKER_VALUE_INT(strvec) * TIMER_HZ;
+	co->connection_to = CHECKER_VALUE_TIMER(strvec);
 
 	/* do not allow 0 timeout */
 	if (! co->connection_to)
