@@ -56,13 +56,28 @@ dump_url(void *data)
 		       url->status_code);
 }
 
+static void
+free_http_request(request_t *req)
+{
+	if(!req)
+		return;
+	if (req->ssl)
+		SSL_free(req->ssl);
+	if (req->buffer)
+		FREE(req->buffer);
+	FREE(req);
+}
+
 void
 free_http_get_check(void *data)
 {
 	http_checker_t *http_get_chk = CHECKER_DATA(data);
+	http_t *http = HTTP_ARG(http_get_chk);
+	request_t *req = HTTP_REQ(http);
 
 	free_list(http_get_chk->url);
-	FREE(http_get_chk->arg);
+	free_http_request(req);
+	FREE(http);
 	FREE(http_get_chk);
 	FREE(CHECKER_CO(data));
 	FREE(data);
@@ -315,11 +330,7 @@ epilog(thread_t * thread, int method, int t, int c)
 	/* If req == NULL, fd is not created */
 	assert(!close(thread->u.fd));
 	if (req) {
-		if (req->ssl)
-			SSL_free(req->ssl);
-		if (req->buffer)
-			FREE(req->buffer);
-		FREE(req);
+		free_http_request(req);
 		http->req = NULL;
 	}
 
