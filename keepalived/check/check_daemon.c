@@ -88,6 +88,18 @@ stop_check(void)
 	exit(0);
 }
 
+static void
+set_maxfile_limit(size_t val)
+{
+	struct rlimit rlim;
+	rlim.rlim_cur = val;
+	rlim.rlim_max = val;
+
+	if (setrlimit(RLIMIT_NOFILE, &rlim) == -1)
+		log_message(LOG_WARNING, "Setting maximum of"
+				"opened files to %lu failed", val);
+}
+
 /* Daemon init sequence */
 static void
 start_check(void)
@@ -97,6 +109,7 @@ start_check(void)
 		stop_check();
 		return;
 	}
+	set_maxfile_limit(MAX_OPENED_FILES);
 	init_checkers_queue();
 #ifdef _WITH_VRRP_
 	init_interface_queue();

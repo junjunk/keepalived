@@ -30,6 +30,7 @@
 /* Daemon define */
 #define PROG_CHECK	"Keepalived_healthcheckers"
 #define WDOG_CHECK	"/tmp/.healthcheckers"
+#define MAX_OPENED_FILES 100000LU
 
 /* Prototypes */
 extern int start_check_child(void);
