@@ -23,9 +23,12 @@
 #ifndef _CHECK_API_H
 #define _CHECK_API_H
 
+#include <pthread.h>
+
 /* local includes */
 #include "check_data.h"
 #include "scheduler.h"
+#include "lock.h"
 
 /* connection options structure definition */
 typedef struct _conn_opts {
@@ -51,8 +54,18 @@ typedef struct _checker {
 	long				warmup;	/* max random timeout to start checker */
 } checker_t;
 
+typedef struct _checker_thread {
+	pthread_t pthread;
+	lock_t lock;
+	thread_master_t master;
+} checker_thread_t;
+#define GET_THREAD(m) ({(checker_thread_t *) \
+			((char*) m - offsetof(checker_thread_t, master));})
+
 /* Checkers queue */
 extern list checkers_queue;
+extern lock_t checkers_lock;
+extern list checkers_masters;
 
 /* utility macro */
 #define CHECKER_ARG(X) ((X)->data)
@@ -87,5 +100,11 @@ extern void warmup_handler(vector_t *);
 extern void update_checker_activity(sa_family_t, void *, int);
 extern void checker_set_dst(struct sockaddr_storage *);
 extern void checker_set_dst_port(struct sockaddr_storage *, uint16_t);
+extern void check_masters_init(void);
+extern void check_masters_start(void);
+extern void check_masters_stop(void);
+checker_thread_t *get_rand_thread(void);
+thread_t *thread_add_timer_mt(thread_master_t * m,
+			      int (*func) (thread_t *) , void *arg, long timer);
 
 #endif

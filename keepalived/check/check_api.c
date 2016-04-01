@@ -22,6 +22,8 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
+#include <pthread.h>
+#include <signal.h>
 #include "check_api.h"
 #include "main.h"
 #include "parser.h"
@@ -38,7 +40,10 @@
 
 /* Global vars */
 static checker_id_t ncheckers = 0;
+size_t nmasters = 32;
 list checkers_queue;
+lock_t checkers_lock __attribute__ ((aligned));
+list checkers_masters;
 
 /* free checker data */
 static void
@@ -257,7 +262,8 @@ register_checkers_thread(void)
 			warmup = checker->warmup;
 			if (warmup)
 				warmup = warmup * rand() / RAND_MAX;
-			thread_add_timer(master, checker->launch, checker,
+			checker_thread_t *thread = get_rand_thread(); //XXX
+			thread_add_timer_mt(&thread->master, checker->launch, checker,
 					 BOOTSTRAP_DELAY + warmup);
 		}
 	}
@@ -318,4 +324,109 @@ install_checkers_keyword(void)
 	install_tcp_check_keyword();
 	install_http_check_keyword();
 	install_ssl_check_keyword();
+}
+
+void *
+check_thread_run(void *arg)
+{
+	thread_t thread;
+	checker_thread_t *checker_thread = arg;
+	thread_master_t *m = &checker_thread->master;
+	sigset_t allsig;
+
+	/* Ignore all signals, its out master job */
+	sigfillset(&allsig);
+	assert(!pthread_sigmask(SIG_BLOCK, &allsig, NULL));
+
+	while (thread_fetch(m, &thread))
+		thread_call(&thread);
+
+	/* We are goind down */
+	thread_cleanup_master(m);
+	pthread_exit(0);
+	return NULL;
+}
+
+void
+check_masters_init(void)
+{
+	/* Initialize master's epollfd and lock */
+	/* pthreads will be started after register_checkers_thread */
+	size_t i;
+
+	lock_init(&checkers_lock);
+	checkers_masters = alloc_list(NULL, NULL);
+	for(i=0; i<nmasters;i++)
+	{
+		checker_thread_t *t = MALLOC(sizeof(*t));
+		lock_init(&t->lock);
+		thread_init_master(&t->master);
+		t->master.stop_flag = 0;
+		list_add(checkers_masters, t);
+	}
+}
+
+void
+check_masters_start(void)
+{
+	element e;
+	checker_thread_t *t;
+	pthread_attr_t *pthread_attr = NULL;
+
+	for (e = LIST_HEAD(checkers_masters); e; ELEMENT_NEXT(e))
+	{
+		t = ELEMENT_DATA(e);
+		pthread_create(&t->pthread, pthread_attr, check_thread_run, t);
+	}
+}
+
+void
+check_masters_stop(void)
+{
+	element e;
+	checker_thread_t *t;
+	thread_master_t *m;
+
+	for (e = LIST_HEAD(checkers_masters); e; ELEMENT_NEXT(e))
+	{
+		t = ELEMENT_DATA(e);
+		m = &t->master;
+
+		m->stop_flag = 1;
+		pthread_join(t->pthread, NULL);
+		assert(!lock_destroy(&t->lock));
+	}
+	free_list(checkers_masters);
+	assert(!lock_destroy(&checkers_lock));
+}
+
+checker_thread_t *
+get_rand_thread()
+{
+	int id = rand() % checkers_masters->count;
+	int i = 0;
+	element e;
+	checker_thread_t *checker_thread;
+
+	for(e = LIST_HEAD(checkers_masters); e ; ELEMENT_NEXT(e))
+	{
+		checker_thread = ELEMENT_DATA(e);
+		if (i++ == id)
+			return checker_thread;
+	}
+	assert(0);
+	return NULL;
+}
+
+thread_t *
+thread_add_timer_mt(thread_master_t * m, int (*func) (thread_t *)
+		 , void *arg, long timer)
+{
+	thread_t *ret;
+	checker_thread_t *t = GET_THREAD(m);
+
+	lock(&t->lock);
+	ret = thread_add_timer(&t->master, func, arg, timer);
+	unlock(&t->lock);
+	return ret;
 }

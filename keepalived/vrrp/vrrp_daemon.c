@@ -224,14 +224,30 @@ sigend_vrrp(void *v, int sig)
 
 /* VRRP Child signal handling */
 void
-vrrp_signal_init(void)
+vrrp_signal_enable(void)
 {
-	signal_handler_init();
 	signal_set(SIGHUP, sighup_vrrp, NULL);
 	signal_set(SIGINT, sigend_vrrp, NULL);
 	signal_set(SIGTERM, sigend_vrrp, NULL);
 	signal_set(SIGUSR1, sigusr1_vrrp, NULL);
 	signal_set(SIGUSR2, sigusr2_vrrp, NULL);
+}
+
+void
+vrrp_signal_disable(void)
+{
+	signal_ignore(SIGHUP);
+	signal_ignore(SIGINT);
+	signal_ignore(SIGTERM);
+	signal_ignore(SIGUSR1);
+	signal_ignore(SIGUSR2);
+}
+
+void
+vrrp_signal_init(void)
+{
+	signal_handler_init();
+	vrrp_signal_enable();
 	signal_ignore(SIGPIPE);
 }
 
@@ -243,13 +259,12 @@ reload_vrrp_thread(thread_t * thread)
 	SET_RELOAD;
 
 	/* Signal handling */
-	signal_handler_reset();
+	vrrp_signal_disable();
 
 	/* Destroy master thread */
 	vrrp_dispatcher_release(vrrp_data);
 	kernel_netlink_close();
-	thread_destroy_master(master);
-	master = thread_make_master();
+	thread_destroy_queues(master);
 	free_global_data(global_data);
 	free_interface_queue();
 	free_vrrp_buffer();
@@ -269,7 +284,7 @@ reload_vrrp_thread(thread_t * thread)
 
 	/* Reload the conf */
 	mem_allocated = 0;
-	vrrp_signal_init();
+	vrrp_signal_enable();
 	signal_set(SIGCHLD, thread_child_handler, master);
 	start_vrrp();
 

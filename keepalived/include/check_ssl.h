@@ -23,9 +23,13 @@
 
 #ifndef _CHECK_SSL_H
 #define _CHECK_SSL_H
-
 /* local includes */
 #include "check_http.h"
+#include "lock.h"
+
+struct CRYPTO_dynlock_value {
+	lock_t lock;
+};
 
 /* Prototypes */
 extern void install_ssl_check_keyword(void);

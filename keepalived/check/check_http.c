@@ -259,9 +259,11 @@ epilog(thread_t * thread, int method, int t, int c)
 					    , FMT_HTTP_RS(checker));
 			smtp_alert(checker->rs, NULL, NULL, "UP",
 				   "=> CHECK succeed on service <=");
+			lock(&checkers_lock);
 			update_svr_checker_state(UP, checker->id
 						   , checker->vs
 						   , checker->rs);
+			unlock(&checkers_lock);
 		}
 
 		/* Reset it counters */
@@ -285,9 +287,11 @@ epilog(thread_t * thread, int method, int t, int c)
 				   "DOWN",
 				   "=> CHECK failed on service"
 				   " : HTTP request failed <=");
+			lock(&checkers_lock);
 			update_svr_checker_state(DOWN, checker->id
 						     , checker->vs
 						     , checker->rs);
+			unlock(&checkers_lock);
 		}
 
 		/* Reset it counters */
@@ -309,6 +313,7 @@ epilog(thread_t * thread, int method, int t, int c)
 	}
 
 	/* If req == NULL, fd is not created */
+	assert(!close(thread->u.fd));
 	if (req) {
 		if (req->ssl)
 			SSL_free(req->ssl);
@@ -316,7 +321,6 @@ epilog(thread_t * thread, int method, int t, int c)
 			FREE(req->buffer);
 		FREE(req);
 		http->req = NULL;
-		close(thread->u.fd);
 	}
 
 	/* Register next checker thread */
@@ -667,7 +671,8 @@ http_check_thread(thread_t * thread)
 				new_req = 0;
 
 			if (http_get_check->proto == PROTO_SSL) {
-				timeout = timer_long(thread->sands) - timer_long(time_now);
+				timeout = timer_long(thread->sands)
+					- timer_long(thread->master->time_now);
 				if (thread->type != THREAD_WRITE_TIMEOUT &&
 				    thread->type != THREAD_READ_TIMEOUT)
 					ret = ssl_connect(thread, new_req);
@@ -679,16 +684,16 @@ http_check_thread(thread_t * thread)
 					switch ((ssl_err = SSL_get_error(http->req->ssl,
 									 ret))) {
 					case SSL_ERROR_WANT_READ:
-						thread_add_read(thread->master,
+						assert(thread_add_read(thread->master,
 								http_check_thread,
 								THREAD_ARG(thread),
-								thread->u.fd, timeout);
+								thread->u.fd, timeout));
 						break;
 					case SSL_ERROR_WANT_WRITE:
-						thread_add_write(thread->master,
+						assert(thread_add_write(thread->master,
 								 http_check_thread,
 								 THREAD_ARG(thread),
-								 thread->u.fd, timeout);
+								 thread->u.fd, timeout));
 						break;
 					default:
 						ret = 0;
@@ -705,10 +710,10 @@ http_check_thread(thread_t * thread)
 				 * Register the next step thread ssl_request_thread.
 				 */
 				DBG("Remote Web server %s connected.", FMT_HTTP_RS(checker));
-				thread_add_write(thread->master,
+				assert(thread_add_write(thread->master,
 						 http_request_thread, checker,
 						 thread->u.fd,
-						 checker->co->connection_to);
+						 checker->co->connection_to));
 			} else {
 				DBG("Connection trouble to: %s."
 						 , FMT_HTTP_RS(checker));
@@ -766,7 +771,7 @@ http_connect_thread(thread_t * thread)
 	/* handle tcp connection status & register check worker thread */
 	if(tcp_connection_state(fd, status, thread, http_check_thread,
 			co->connection_to)) {
-		close(fd);
+		assert(!close(fd));
 		log_message(LOG_INFO, "WEB socket bind failed. Rescheduling");
 		thread_add_timer(thread->master, http_connect_thread, checker,
 				checker->vs->delay_loop);

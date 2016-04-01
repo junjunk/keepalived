@@ -100,7 +100,6 @@ tcp_socket_state(int fd, thread_t * thread, int (*func) (thread_t *))
 
 	/* Handle connection timeout */
 	if (thread->type == THREAD_WRITE_TIMEOUT) {
-		close(thread->u.fd);
 		return connect_timeout;
 	}
 
@@ -111,7 +110,6 @@ tcp_socket_state(int fd, thread_t * thread, int (*func) (thread_t *))
 
 	/* Connection failed !!! */
 	if (ret) {
-		close(thread->u.fd);
 		return connect_error;
 	}
 
@@ -121,12 +119,11 @@ tcp_socket_state(int fd, thread_t * thread, int (*func) (thread_t *))
 	 * Recompute the write timeout (or pending connection).
 	 */
 	if (status == EINPROGRESS) {
-		timer_min = timer_sub_now(thread->sands);
-		thread_add_write(thread->master, func, THREAD_ARG(thread),
-				 thread->u.fd, timer_long(timer_min));
+		timer_min = timer_sub(thread->master->time_now, thread->sands);
+		assert(thread_add_write(thread->master, func, THREAD_ARG(thread),
+				 thread->u.fd, timer_long(timer_min)));
 		return connect_in_progress;
 	} else if (status != 0) {
-		close(thread->u.fd);
 		return connect_error;
 	}
 

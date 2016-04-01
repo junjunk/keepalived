@@ -78,6 +78,8 @@ typedef struct _thread_master {
 
 	int epollfd;
 	unsigned long alloc;
+	timeval_t time_now;
+	int stop_flag;
 } thread_master_t;
 
 /* Thread types. */
@@ -114,8 +116,10 @@ extern int snmp_enable;
 
 /* Prototypes. */
 extern thread_master_t *thread_make_master(void);
+extern void thread_init_master(thread_master_t *master);
 extern thread_t *thread_add_terminate_event(thread_master_t *);
 extern void thread_destroy_master(thread_master_t *);
+extern void thread_destroy_queues(thread_master_t *);
 extern thread_t *thread_add_read(thread_master_t *, int (*func) (thread_t *), void *, int, long);
 extern thread_t *thread_add_write(thread_master_t *, int (*func) (thread_t *), void *, int, long);
 extern thread_t *thread_add_timer(thread_master_t *, int (*func) (thread_t *), void *, long);
@@ -127,5 +131,8 @@ extern thread_t *thread_fetch(thread_master_t *, thread_t *);
 extern void thread_child_handler(void *, int);
 extern void thread_call(thread_t *);
 extern void launch_scheduler(void);
+extern void set_time_master(thread_master_t *master);
+extern void thread_cleanup_master(thread_master_t *master);
+extern void register_signal_reader(thread_master_t *master);
 
 #endif

@@ -52,6 +52,7 @@ extern timeval_t time_now;
 /* prototypes */
 extern timeval_t timer_now(void);
 extern timeval_t set_time_now(void);
+extern timeval_t set_time(timeval_t *time);
 extern timeval_t timer_dup(timeval_t);
 extern int timer_cmp(timeval_t, timeval_t);
 extern timeval_t timer_sub(timeval_t, timeval_t);

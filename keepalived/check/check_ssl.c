@@ -32,6 +32,7 @@
 #include "smtp.h"
 #include "utils.h"
 #include "html.h"
+#include "lock.h"
 
 /* SSL primitives */
 /* Free an SSL context */
@@ -57,6 +58,73 @@ password_cb(char *buf, int num, int rwflag, void *userdata)
 	return (plen);
 }
 
+lock_t *ssl_locks;
+size_t ssl_lock_num;
+
+static inline void
+ssl_mode_lock(int mode, lock_t *l)
+{
+	if (mode & CRYPTO_LOCK)
+		lock(l);
+	else
+		unlock(l);
+}
+
+static void
+ssl_lock_callback(int mode, int type, const char *file, int line)
+{
+	ssl_mode_lock(mode, &ssl_locks[type]);
+}
+
+static unsigned long thread_id_callback(void)
+{
+	return (unsigned long) pthread_self();
+}
+
+static struct CRYPTO_dynlock_value *
+ssl_dynlock_create(const char *file, int line)
+{
+	struct CRYPTO_dynlock_value *dynlock;
+
+	dynlock = MALLOC(sizeof(*dynlock));
+	assert(dynlock);
+	lock_init(&dynlock->lock);
+	return dynlock;
+}
+
+static void
+ssl_dynlock_lock(int mode, struct CRYPTO_dynlock_value *dynlock,
+		const char *file, int line)
+{
+	ssl_mode_lock(mode, &dynlock->lock);
+}
+
+static void
+ssl_dynlock_destroy(struct CRYPTO_dynlock_value *dynlock,
+		const char *file, int line)
+{
+	int ret = lock_destroy(&dynlock->lock);
+	if (ret)
+		assert(0);
+	FREE(dynlock);
+}
+
+static void
+init_ssl_locks(void)
+{
+	ssl_lock_num = CRYPTO_num_locks();
+	ssl_locks = (lock_t*) MALLOC(ssl_lock_num * sizeof(lock_t));
+	size_t i;
+	for (i = 0; i < ssl_lock_num; i++)
+		lock_init(&ssl_locks[i]);
+
+	CRYPTO_set_id_callback(thread_id_callback);
+	CRYPTO_set_locking_callback(ssl_lock_callback);
+	CRYPTO_set_dynlock_create_callback(ssl_dynlock_create);
+	CRYPTO_set_dynlock_lock_callback(ssl_dynlock_lock);
+	CRYPTO_set_dynlock_destroy_callback(ssl_dynlock_destroy);
+}
+
 /* Inititalize global SSL context */
 static BIO *bio_err = 0;
 static int
@@ -66,6 +134,7 @@ build_ssl_ctx(void)
 
 	/* Library initialization */
 	SSL_library_init();
+	init_ssl_locks();
 
 	SSL_load_error_strings();
 	bio_err = BIO_new_fp(stderr, BIO_NOCLOSE);

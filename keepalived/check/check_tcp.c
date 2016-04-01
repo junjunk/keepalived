@@ -29,6 +29,7 @@
 #include "smtp.h"
 #include "utils.h"
 #include "parser.h"
+#include "lock.h"
 
 int tcp_connect_thread(thread_t *);
 
@@ -117,9 +118,11 @@ tcp_eplilog(thread_t * thread, int is_success)
 			smtp_alert(checker->rs, NULL, NULL,
 				   "UP",
 				   "=> TCP CHECK succeed on service <=");
+			lock(&checkers_lock);
 			update_svr_checker_state(UP, checker->id
 						   , checker->vs
 						   , checker->rs);
+			unlock(&checkers_lock);
 		} else if (! is_success
 			   && svr_checker_up(checker->id, checker->rs)) {
 			if (tcp_check->n_retry)
@@ -130,9 +133,11 @@ tcp_eplilog(thread_t * thread, int is_success)
 			smtp_alert(checker->rs, NULL, NULL,
 				   "DOWN",
 				   "=> TCP CHECK failed on service <=");
+			lock(&checkers_lock);
 			update_svr_checker_state(DOWN, checker->id
 						     , checker->vs
 						     , checker->rs);
+			unlock(&checkers_lock);
 		}
 	} else {
 		delay = tcp_check->delay_before_retry;
@@ -210,7 +215,7 @@ tcp_connect_thread(thread_t * thread)
 	/* handle tcp connection status & register check worker thread */
 	if(tcp_connection_state(fd, status, thread, tcp_check_thread,
 			co->connection_to)) {
-		close(fd);
+		assert(!close(fd));
 		log_message(LOG_INFO, "TCP socket bind failed. Rescheduling.");
 		thread_add_timer(thread->master, tcp_connect_thread, checker,
 				checker->vs->delay_loop);
