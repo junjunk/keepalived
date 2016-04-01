@@ -20,6 +20,7 @@
  * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@gmail.com>
  */
 
+#include <sys/resource.h>
 #include "check_daemon.h"
 #include "check_parser.h"
 #include "ipwrapper.h"
@@ -44,6 +45,7 @@
 #ifdef _WITH_SNMP_
   #include "check_snmp.h"
 #endif
+#include "lock.h"
 
 extern char *checkers_pidfile;
 
@@ -150,9 +152,14 @@ start_check(void)
 	/* Initialize linkbeat */
 	init_interface_linkbeat();
 #endif
+	/* Create check masters with its own epollfd and wait queue */
+	check_masters_init();
 
 	/* Register checkers thread */
 	register_checkers_thread();
+
+	/* Start checking threads */
+	check_masters_start();
 }
 
 /* Reload handler */
@@ -173,12 +180,26 @@ sigend_check(void *v, int sig)
 
 /* CHECK Child signal handling */
 void
-check_signal_init(void)
+check_signal_enable(void)
 {
-	signal_handler_init();
 	signal_set(SIGHUP, sighup_check, NULL);
 	signal_set(SIGINT, sigend_check, NULL);
 	signal_set(SIGTERM, sigend_check, NULL);
+}
+
+void
+check_signal_disable(void)
+{
+	signal_ignore(SIGHUP);
+	signal_ignore(SIGINT);
+	signal_ignore(SIGTERM);
+}
+
+void
+check_signal_init(void)
+{
+	signal_handler_init();
+	check_signal_enable();
 	signal_ignore(SIGPIPE);
 }
 
@@ -192,14 +213,14 @@ reload_check_thread(thread_t * thread)
 	log_message(LOG_INFO, "Got SIGHUP, reloading checker configuration");
 
 	/* Signals handling */
-	signal_handler_reset();
+	check_signal_disable();
 
 	/* Destroy master thread */
 #ifdef _WITH_VRRP_
 	kernel_netlink_close();
 #endif
-	thread_destroy_master(master);
-	master = thread_make_master();
+	check_masters_stop();
+	thread_destroy_queues(master);
 	free_global_data(global_data);
 	free_checkers_queue();
 #ifdef _WITH_VRRP_
@@ -214,7 +235,7 @@ reload_check_thread(thread_t * thread)
 
 	/* Reload the conf */
 	mem_allocated = 0;
-	check_signal_init();
+	check_signal_enable();
 	signal_set(SIGCHLD, thread_child_handler, master);
 	start_check();
 

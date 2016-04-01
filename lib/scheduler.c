@@ -47,20 +47,28 @@ int snmp_enable = 0; /* Enable SNMP support */
 thread_master_t *master = NULL;
 
 /* Make thread master. */
-thread_master_t *
-thread_make_master(void)
+void
+thread_init_master(thread_master_t *master)
 {
-	thread_master_t *new;
 	int epollfd;
 
-	new = (thread_master_t *) MALLOC(sizeof (thread_master_t));
 	epollfd = epoll_create1(0);
 	if (epollfd == -1)
 	{
 		log_message(LOG_ERR, "epoll_create1: %s", strerror(errno));
 		assert(0);
 	}
-	new->epollfd = epollfd;
+	master->epollfd = epollfd;
+	timer_reset_lazy(master->time_now);
+}
+
+thread_master_t *
+thread_make_master(void)
+{
+	thread_master_t *new;
+
+	new = (thread_master_t *) MALLOC(sizeof (thread_master_t));
+	thread_init_master(new);
 	return new;
 }
 
@@ -186,11 +194,11 @@ thread_add_unuse(thread_master_t * m, thread_t * thread)
 
 /* Move list element to unuse queue */
 static void
-thread_destroy_list(thread_master_t * m, thread_list_t thread_list)
+thread_destroy_list(thread_master_t * m, thread_list_t *thread_list)
 {
 	thread_t *thread;
 
-	thread = thread_list.head;
+	thread = thread_list->head;
 
 	while (thread) {
 		thread_t *t;
@@ -210,7 +218,7 @@ thread_destroy_list(thread_master_t * m, thread_list_t thread_list)
 			epoll_ctl(t->master->epollfd, EPOLL_CTL_DEL
 				     , t->u.fd, NULL);
 
-		thread_list_delete(&thread_list, t);
+		thread_list_delete(thread_list, t);
 		t->type = THREAD_UNUSED;
 		thread_add_unuse(m, t);
 	}
@@ -245,15 +253,24 @@ thread_destroy_tree(thread_master_t * m, struct rb_root * root)
 	*root = RB_ROOT;
 }
 
+/* Unuse current thread lists */
+void
+thread_destroy_queues(thread_master_t *m)
+{
+	thread_destroy_tree(m, &m->wait);
+	thread_destroy_list(m, &m->event);
+	thread_destroy_list(m, &m->ready);
+	thread_destroy_list(m, &m->snmp);
+
+	/* Clean garbage */
+	thread_clean_unuse(m);
+}
+
 /* Cleanup master */
-static void
+void
 thread_cleanup_master(thread_master_t * m)
 {
-	/* Unuse current thread lists */
-	thread_destroy_tree(m, &m->wait);
-	thread_destroy_list(m, m->event);
-	thread_destroy_list(m, m->ready);
-	thread_destroy_list(m, m->snmp);
+	thread_destroy_queues(m);
 
 	/*
 	 * We do not need to clean up lists in child_hash, because those
@@ -264,9 +281,6 @@ thread_cleanup_master(thread_master_t * m)
 	if (m->epollfd >= 0)
 		close(m->epollfd);
 	m->epollfd = -1;
-
-	/* Clean garbage */
-	thread_clean_unuse(m);
 }
 
 /* Stop thread scheduler. */
@@ -330,8 +344,8 @@ thread_add_io(unsigned char type, thread_master_t * m,
 	}
 
 	/* Compute read timeout value */
-	set_time_now();
-	thread->sands = timer_add_long(time_now, timer);
+	set_time_master(m);
+	thread->sands = timer_add_long(m->time_now, timer);
 
 	/* Sort the thread. */
 	thread_tree_add_timeval(&m->wait, thread);
@@ -372,8 +386,8 @@ thread_add_timer(thread_master_t * m, int (*func) (thread_t *)
 	thread->arg = arg;
 
 	/* Do we need jitter here? */
-	set_time_now();
-	thread->sands = timer_add_long(time_now, timer);
+	set_time_master(m);
+	thread->sands = timer_add_long(m->time_now, timer);
 
 	/* Sort by timeval. */
 	thread_tree_add_timeval(&m->wait, thread);
@@ -400,8 +414,8 @@ thread_add_child(thread_master_t * m, int (*func) (thread_t *)
 	thread->u.c.status = 0;
 
 	/* Compute write timeout value */
-	set_time_now();
-	thread->sands = timer_add_long(time_now, timer);
+	set_time_master(m);
+	thread->sands = timer_add_long(m->time_now, timer);
 
 	/* Sort by timeval. */
 	thread_tree_add_timeval(&m->wait, thread);
@@ -549,7 +563,7 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 
 	/* Take care about monothonic clock */
 	if (!timer_isnull(timer_min)) {
-		timer_min = timer_sub(timer_min, time_now);
+		timer_min = timer_sub(timer_min, m->time_now);
 		if (timer_min.tv_sec < 0) {
 			timer_reset(timer_min);
 		} else if (timer_min.tv_sec >= 1) {
@@ -573,7 +587,7 @@ process_timeout_threads(thread_master_t *m)
 
 	while ((node = rb_first(root))) {
 		t = rb_entry(node, thread_t, node);
-		if (timer_cmp(time_now, t->sands) < 0)
+		if (timer_cmp(m->time_now, t->sands) < 0)
 			break;
 		rb_erase(node, root);
 
@@ -606,7 +620,7 @@ process_timeout_threads(thread_master_t *m)
 	}
 }
 
-static void
+void
 register_signal_reader(thread_master_t * m)
 {
 	int signal_fd;
@@ -688,6 +702,8 @@ thread_fetch(thread_master_t * m, thread_t * fetch)
 	memset(&timer_wait, 0, sizeof (timeval_t));
 
 retry:	/* When thread can't fetch try to find next thread again. */
+	if (m->stop_flag)
+		return NULL;
 
 	/* If there is event process it first. */
 	while ((thread = thread_trim_head(&m->event))) {
@@ -716,7 +732,7 @@ retry:	/* When thread can't fetch try to find next thread again. */
 	 * Re-read the current time to get the maximum accuracy.
 	 * Calculate select wait timer. Take care of timeouted fd.
 	 */
-	set_time_now();
+	set_time_master(m);
 	thread_compute_timer(m, &timer_wait);
 
 #ifdef _WITH_SNMP_
@@ -741,7 +757,7 @@ retry:	/* When thread can't fetch try to find next thread again. */
 	}
 
 	/* Update current time */
-	set_time_now();
+	set_time_master(m);
 
 	/* turn pending read/write theads into ready. */
 	for (n = 0; n < nevents; ++n) {
@@ -762,7 +778,19 @@ retry:	/* When thread can't fetch try to find next thread again. */
 		else {
 			rb_erase(&t->node, &m->wait);
 			thread_list_add(&m->ready, t);
-			t->type = THREAD_READY_FD;
+			if (events[n].events & (EPOLLHUP | EPOLLRDHUP | EPOLLERR)) {
+				switch(t->type) {
+				case THREAD_READ:
+					t->type = THREAD_READ_TIMEOUT;
+					break;
+				case THREAD_WRITE:
+					t->type = THREAD_WRITE_TIMEOUT;
+					break;
+				}
+			}
+			else
+				t->type = THREAD_READY_FD;
+
 			if (do_epoll_ctl(m->epollfd, EPOLL_CTL_DEL
 					 , t->u.fd, NULL))
 				assert(0);
@@ -880,4 +908,10 @@ launch_scheduler(void)
 #endif
 		thread_call(&thread);
 	}
+}
+
+inline void
+set_time_master(thread_master_t *master)
+{
+	set_time(&master->time_now);
 }

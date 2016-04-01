@@ -185,17 +185,23 @@ timer_now(void)
 
 /* sets and returns current time from system time */
 timeval_t
-set_time_now(void)
+set_time(timeval_t *time)
 {
 	int old_errno = errno;
 
 	/* init timer */
-	if (monotonic_gettimeofday(&time_now)) {
-		timer_reset(time_now);
+	if (monotonic_gettimeofday(time)) {
+		timer_reset(*time);
 		errno = old_errno;
 	}
 
-	return time_now;
+	return *time;
+}
+
+inline timeval_t
+set_time_now(void)
+{
+	return set_time(&time_now);
 }
 
 /* timer sub from current time */
