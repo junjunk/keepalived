@@ -3,7 +3,7 @@
 #include <assert.h>
 #include "lock.h"
 
-void lock(lock_t *lock) 
+void lock(lock_t *lock)
 {
 	int ret = pthread_mutex_lock(lock);
 	assert(!ret);
