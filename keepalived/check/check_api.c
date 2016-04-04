@@ -41,7 +41,6 @@
 /* Global vars */
 static checker_id_t ncheckers = 0;
 list checkers_queue;
-lock_t checkers_lock __attribute__ ((aligned));
 list checkers_masters;
 
 /* free checker data */
@@ -353,7 +352,6 @@ check_masters_init(void)
 	/* pthreads will be started after register_checkers_thread */
 	size_t i;
 
-	lock_init(&checkers_lock);
 	checkers_masters = alloc_list(NULL, NULL);
 
 	/* No valid value set, use default */
@@ -401,7 +399,6 @@ check_masters_stop(void)
 		assert(!lock_destroy(&t->lock));
 	}
 	free_list(checkers_masters);
-	assert(!lock_destroy(&checkers_lock));
 }
 
 checker_thread_t *

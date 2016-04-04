@@ -64,7 +64,6 @@ typedef struct _checker_thread {
 
 /* Checkers queue */
 extern list checkers_queue;
-extern lock_t checkers_lock;
 extern list checkers_masters;
 
 /* utility macro */

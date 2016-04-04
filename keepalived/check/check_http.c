@@ -274,11 +274,9 @@ epilog(thread_t * thread, int method, int t, int c)
 					    , FMT_HTTP_RS(checker));
 			smtp_alert(checker->rs, NULL, NULL, "UP",
 				   "=> CHECK succeed on service <=");
-			lock(&checkers_lock);
 			update_svr_checker_state(UP, checker->id
 						   , checker->vs
 						   , checker->rs);
-			unlock(&checkers_lock);
 		}
 
 		/* Reset it counters */
@@ -302,11 +300,9 @@ epilog(thread_t * thread, int method, int t, int c)
 				   "DOWN",
 				   "=> CHECK failed on service"
 				   " : HTTP request failed <=");
-			lock(&checkers_lock);
 			update_svr_checker_state(DOWN, checker->id
 						     , checker->vs
 						     , checker->rs);
-			unlock(&checkers_lock);
 		}
 
 		/* Reset it counters */

@@ -118,11 +118,9 @@ tcp_eplilog(thread_t * thread, int is_success)
 			smtp_alert(checker->rs, NULL, NULL,
 				   "UP",
 				   "=> TCP CHECK succeed on service <=");
-			lock(&checkers_lock);
 			update_svr_checker_state(UP, checker->id
 						   , checker->vs
 						   , checker->rs);
-			unlock(&checkers_lock);
 		} else if (! is_success
 			   && svr_checker_up(checker->id, checker->rs)) {
 			if (tcp_check->n_retry)
@@ -133,11 +131,9 @@ tcp_eplilog(thread_t * thread, int is_success)
 			smtp_alert(checker->rs, NULL, NULL,
 				   "DOWN",
 				   "=> TCP CHECK failed on service <=");
-			lock(&checkers_lock);
 			update_svr_checker_state(DOWN, checker->id
 						     , checker->vs
 						     , checker->rs);
-			unlock(&checkers_lock);
 		}
 	} else {
 		delay = tcp_check->delay_before_retry;
