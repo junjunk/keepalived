@@ -239,11 +239,12 @@ dump_ipaddress(void *if_data)
 	ip_address_t *ipaddr = if_data;
 	char *broadcast = (char *) MALLOC(INET_ADDRSTRLEN + 5);
 	char *addr_str;
+	util_buf_t buf;
 
 	addr_str = ipaddresstos(ipaddr);
 	if (!IP_IS6(ipaddr) && ipaddr->u.sin.sin_brd.s_addr) {
 		snprintf(broadcast, 21, " brd %s",
-			 inet_ntop2(ipaddr->u.sin.sin_brd.s_addr));
+			 inet_ntop2(ipaddr->u.sin.sin_brd.s_addr, &buf));
 	}
 
 	log_message(LOG_INFO, "     %s/%d%s dev %s scope %s%s%s"

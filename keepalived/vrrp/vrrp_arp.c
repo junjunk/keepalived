@@ -39,6 +39,7 @@ static int send_arp(ip_address_t *ipaddress)
 {
 	struct sockaddr_ll sll;
 	int len;
+	util_buf_t buf;
 
 	/* Build the dst device */
 	memset(&sll, 0, sizeof(sll));
@@ -52,7 +53,7 @@ static int send_arp(ip_address_t *ipaddress)
 		     , 0, (struct sockaddr *)&sll, sizeof(sll));
 	if (len < 0)
 		log_message(LOG_INFO, "Error sending gratuitous ARP on %s for %s",
-			    IF_NAME(ipaddress->ifp), inet_ntop2(ipaddress->u.sin.sin_addr.s_addr));
+			    IF_NAME(ipaddress->ifp), inet_ntop2(ipaddress->u.sin.sin_addr.s_addr, &buf));
 	return len;
 }
 

@@ -139,6 +139,7 @@ misc_check_child_thread(thread_t * thread)
 	int wait_status;
 	checker_t *checker;
 	misc_checker_t *misck_checker;
+	util_buf_t buf;
 
 	checker = THREAD_ARG(thread);
 	misck_checker = CHECKER_ARG(checker);
@@ -151,7 +152,7 @@ misc_check_child_thread(thread_t * thread)
 		/* The child hasn't responded. Kill it off. */
 		if (svr_checker_up(checker->id, checker->rs)) {
 			log_message(LOG_INFO, "Misc check to [%s] for [%s] timed out"
-					    , inet_sockaddrtos(&checker->rs->addr)
+					    , inet_sockaddrtos(&checker->rs->addr, &buf)
 					    , misck_checker->path);
 			smtp_alert(checker->rs, NULL, NULL,
 				   "DOWN",
@@ -186,7 +187,7 @@ misc_check_child_thread(thread_t * thread)
 			/* everything is good */
 			if (!svr_checker_up(checker->id, checker->rs)) {
 				log_message(LOG_INFO, "Misc check to [%s] for [%s] success."
-						    , inet_sockaddrtos(&checker->rs->addr)
+						    , inet_sockaddrtos(&checker->rs->addr, &buf)
 						    , misck_checker->path);
 				smtp_alert(checker->rs, NULL, NULL,
 					   "UP",
@@ -198,7 +199,7 @@ misc_check_child_thread(thread_t * thread)
 		} else {
 			if (svr_checker_up(checker->id, checker->rs)) {
 				log_message(LOG_INFO, "Misc check to [%s] for [%s] failed."
-						    , inet_sockaddrtos(&checker->rs->addr)
+						    , inet_sockaddrtos(&checker->rs->addr, &buf)
 						    , misck_checker->path);
 				smtp_alert(checker->rs, NULL, NULL,
 					   "DOWN",

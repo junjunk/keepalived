@@ -61,6 +61,7 @@ clear_service_rs(virtual_server_t * vs, list l)
 	real_server_t *rs;
 	long weight_sum;
 	long down_threshold = vs->quorum - vs->hysteresis;
+	util_buf_t buf;
 
 	for (e = LIST_HEAD(l); e; ELEMENT_NEXT(e)) {
 		rs = ELEMENT_DATA(e);
@@ -191,6 +192,7 @@ sync_service_vsg(virtual_server_t * vs)
 	virtual_server_group_entry_t *vsge;
 	list *l;
 	element e;
+	util_buf_t buf;
 
 	vsg = vs->vsg;
 	list ll[] = {
@@ -205,7 +207,7 @@ sync_service_vsg(virtual_server_t * vs)
 			vsge = ELEMENT_DATA(e);
 			if (vs->reloaded && !vsge->reloaded) {
 				log_message(LOG_INFO, "VS [%s:%d:%u] added into group %s"
-						    , inet_sockaddrtopair(&vsge->addr)
+						    , inet_sockaddrtopair(&vsge->addr, &buf)
 						    , vsge->range
 						    , vsge->vfwmark
 						    , vs->vsgname);
@@ -289,6 +291,7 @@ update_quorum_state(virtual_server_t * vs)
 	long weight_sum = weigh_live_realservers(vs);
 	long up_threshold = vs->quorum + vs->hysteresis;
 	long down_threshold = vs->quorum - vs->hysteresis;
+	util_buf_t buf;
 
 	/* If we have just gained quorum, it's time to consider notify_up. */
 	if (vs->quorum_state == DOWN &&
@@ -374,6 +377,8 @@ perform_svr_state(int alive, virtual_server_t * vs, real_server_t * rs)
 	 * | 1           | 0     | RS went down, remove it from the pool
 	 * | 1           | 1     | first check succeeded w/o alpha mode, unreachable here
 	 */
+	util_buf_t buf;
+
 	if (!ISALIVE(rs) && alive) {
 		log_message(LOG_INFO, "%s service %s to VS %s"
 				    , (rs->inhibit) ? "Enabling" : "Adding"
@@ -436,6 +441,8 @@ void
 update_svr_wgt(int weight, virtual_server_t * vs, real_server_t * rs
 		, int update_quorum)
 {
+	util_buf_t buf;
+
 	if (weight != rs->weight) {
 		log_message(LOG_INFO, "Changing weight from %d to %d for %s service %s of VS %s"
 				    , rs->weight
@@ -551,6 +558,7 @@ clear_diff_vsge(list old, list new, virtual_server_t * old_vs)
 {
 	virtual_server_group_entry_t *vsge, *new_vsge;
 	element e;
+	util_buf_t buf;
 
 	for (e = LIST_HEAD(old); e; ELEMENT_NEXT(e)) {
 		vsge = ELEMENT_DATA(e);
@@ -561,7 +569,7 @@ clear_diff_vsge(list old, list new, virtual_server_t * old_vs)
 		}
 		else {
 			log_message(LOG_INFO, "VS [%s:%d:%u] in group %s no longer exist"
-					    , inet_sockaddrtopair(&vsge->addr)
+					    , inet_sockaddrtopair(&vsge->addr, &buf)
 					    , vsge->range
 					    , vsge->vfwmark
 					    , old_vs->vsgname);
@@ -637,6 +645,7 @@ clear_diff_rs(virtual_server_t * old_vs, list new_rs_list)
 	element e;
 	list l = old_vs->rs;
 	real_server_t *rs, *new_rs;
+	util_buf_t buf;
 
 	/* If old vs didn't own rs then nothing return */
 	if (LIST_ISEMPTY(l))

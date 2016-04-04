@@ -351,6 +351,7 @@ smtp_get_line_cb(thread_t *thread)
 	smtp_checker_t *smtp_checker = CHECKER_ARG(checker);
 	smtp_host_t *smtp_host = smtp_checker->host_ptr;
 	int f, r, x;
+	util_buf_t buf;
 
         /* Handle read timeout */
         if (thread->type == THREAD_READ_TIMEOUT) {
@@ -462,6 +463,7 @@ smtp_put_line_cb(thread_t *thread)
 	smtp_checker_t *smtp_checker = CHECKER_ARG(checker);
 	smtp_host_t *smtp_host = smtp_checker->host_ptr;
 	int f, w;
+	util_buf_t buf;
 
 
         /* Handle read timeout */
@@ -566,6 +568,7 @@ smtp_engine_thread(thread_t *thread)
 	checker_t *checker = THREAD_ARG(thread);
 	smtp_checker_t *smtp_checker = CHECKER_ARG(checker);
 	smtp_host_t *smtp_host = smtp_checker->host_ptr;
+	util_buf_t buf;
 
 	switch (smtp_checker->state) {
 
@@ -655,6 +658,7 @@ smtp_check_thread(thread_t *thread)
 	smtp_checker_t *smtp_checker = CHECKER_ARG(checker);
 	smtp_host_t *smtp_host = smtp_checker->host_ptr;
 	int status;
+	util_buf_t buf;
 
 	status = tcp_socket_state(thread->u.fd, thread, smtp_check_thread);
 	switch (status) {
@@ -705,6 +709,7 @@ smtp_connect_thread(thread_t *thread)
 	smtp_host_t *smtp_host;
 	enum connect_result status;
 	int sd;
+	util_buf_t buf;
 
 	/* Let's review our data structures.
 	 *

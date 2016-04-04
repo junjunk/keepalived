@@ -258,6 +258,7 @@ epilog(thread_t * thread, int method, int t, int c)
 	http_t *http = HTTP_ARG(http_get_check);
 	request_t *req = HTTP_REQ(http);
 	long delay = 0;
+	util_buf_t buf;
 
 	if (method) {
 		http->url_it += t ? t : -http->url_it;
@@ -339,6 +340,7 @@ int
 timeout_epilog(thread_t * thread, char *debug_msg)
 {
 	checker_t *checker = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	/* check if server is currently alive */
 	if (svr_checker_up(checker->id, checker->rs)) {
@@ -378,6 +380,7 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 		on_status,
 		on_digest
 	} last_success = none; /* the source of last considered success */
+	util_buf_t buf;
 
 	/* First check if remote webserver returned data */
 	if (empty_buffer)
@@ -468,6 +471,7 @@ http_read_thread(thread_t * thread)
 	unsigned char digest[16];
 	int r = 0;
 	int val;
+	util_buf_t buf;
 
 	/* Handle read timeout */
 	if (thread->type == THREAD_READ_TIMEOUT)
@@ -577,6 +581,7 @@ http_request_thread(thread_t * thread)
 	url_t *fetched_url;
 	int ret = 0;
 	int val;
+	util_buf_t buf;
 
 	/* Handle read timeout */
 	if (thread->type == THREAD_WRITE_TIMEOUT)
@@ -593,7 +598,7 @@ http_request_thread(thread_t * thread)
 		request_host_port = (char*) MALLOC(1);
 		*request_host_port = 0;
 	} else {
-		request_host = inet_sockaddrtos(addr);
+		request_host = inet_sockaddrtos(addr, &buf);
 
 		/* Allocate a buffer for the port string ( ":" [0-9][0-9][0-9][0-9][0-9] "\0" ) */
 		request_host_port = (char*) MALLOC(7);

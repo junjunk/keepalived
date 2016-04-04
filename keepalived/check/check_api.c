@@ -56,6 +56,8 @@ static void
 dump_checker(void *data)
 {
 	checker_t *checker = data;
+	util_buf_t buf;
+
 	log_message(LOG_INFO, " %s", FMT_CHK(checker));
 	(*checker->dump_func) (checker);
 }
@@ -63,9 +65,11 @@ dump_checker(void *data)
 void
 dump_conn_opts (conn_opts_t *conn)
 {
-	log_message(LOG_INFO, "   Connection dest = %s", inet_sockaddrtopair(&conn->dst));
+	util_buf_t buf;
+
+	log_message(LOG_INFO, "   Connection dest = %s", inet_sockaddrtopair(&conn->dst, &buf));
 	if (conn->bindto.ss_family)
-		log_message(LOG_INFO, "   Bind to = %s", inet_sockaddrtopair(&conn->bindto));
+		log_message(LOG_INFO, "   Bind to = %s", inet_sockaddrtopair(&conn->bindto, &buf));
 #ifdef _WITH_SO_MARK_
 	if (conn->fwmark != 0)
 		log_message(LOG_INFO, "   Connection mark = %u", conn->fwmark);
@@ -245,6 +249,7 @@ register_checkers_thread(void)
 	checker_t *checker;
 	element e;
 	long warmup;
+	util_buf_t buf;
 
 	for (e = LIST_HEAD(checkers_queue); e; ELEMENT_NEXT(e)) {
 		checker = ELEMENT_DATA(e);
@@ -276,6 +281,7 @@ update_checker_activity(sa_family_t family, void *address, int enable)
 	element e;
 	char addr_str[INET6_ADDRSTRLEN];
 	void *addr;
+	util_buf_t buf;
 
 	/* Display netlink operation */
 	if (__test_bit(LOG_DETAIL_BIT, &debug)) {

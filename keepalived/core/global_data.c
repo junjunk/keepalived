@@ -165,6 +165,7 @@ dump_global_data(data_t * data)
 {
 	if (!data)
 		return;
+	util_buf_t buf;
 
 	if (data->router_id ||
 	    data->smtp_server.ss_family || data->smtp_connection_to || data->email_from) {
@@ -173,7 +174,7 @@ dump_global_data(data_t * data)
 	if (data->router_id)
 		log_message(LOG_INFO, " Router ID = %s", data->router_id);
 	if (data->smtp_server.ss_family)
-		log_message(LOG_INFO, " Smtp server = %s", inet_sockaddrtos(&data->smtp_server));
+		log_message(LOG_INFO, " Smtp server = %s", inet_sockaddrtos(&data->smtp_server, &buf));
 	if (data->smtp_connection_to)
 		log_message(LOG_INFO, " Smtp server connection timeout = %lu"
 				    , data->smtp_connection_to / TIMER_HZ);
@@ -184,11 +185,11 @@ dump_global_data(data_t * data)
 	}
 	if (data->vrrp_mcast_group4.ss_family) {
 		log_message(LOG_INFO, " VRRP IPv4 mcast group = %s"
-				    , inet_sockaddrtos(&data->vrrp_mcast_group4));
+				    , inet_sockaddrtos(&data->vrrp_mcast_group4, &buf));
 	}
 	if (data->vrrp_mcast_group6.ss_family) {
 		log_message(LOG_INFO, " VRRP IPv6 mcast group = %s"
-				    , inet_sockaddrtos(&data->vrrp_mcast_group6));
+				    , inet_sockaddrtos(&data->vrrp_mcast_group6, &buf));
 	}
 	if (data->vrrp_garp_delay)
 		log_message(LOG_INFO, " Gratuitous ARP delay = %d",

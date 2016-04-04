@@ -291,6 +291,7 @@ vrrp_in_chk(vrrp_t * vrrp, char *buffer)
 	ipv4_phdr_t ipv4_phdr;
 	int acc_csum = 0;
 	ip = NULL;
+	util_buf_t buf;
 
 	/* IPv4 related */
 	if (vrrp->family == AF_INET) {
@@ -349,7 +350,7 @@ vrrp_in_chk(vrrp_t * vrrp, char *buffer)
 				if (!vrrp_in_chk_vips(vrrp, ipaddress, vips)) {
 					log_message(LOG_INFO, "ip address associated with VRID"
 					       " not present in received packet : %s",
-					       inet_ntop2(ipaddress->u.sin.sin_addr.s_addr));
+					       inet_ntop2(ipaddress->u.sin.sin_addr.s_addr, &buf));
 					log_message(LOG_INFO,
 					       "one or more VIP associated with"
 					       " VRID mismatch actual MASTER advert");
@@ -926,6 +927,7 @@ vrrp_send_adv(vrrp_t * vrrp, int prio)
 	list l = vrrp->unicast_peer;
 	element e;
 	int ret;
+	util_buf_t buf;
 
 	/* alloc send buffer */
 	if (!vrrp->send_buffer)
@@ -941,7 +943,7 @@ vrrp_send_adv(vrrp_t * vrrp, int prio)
 			ret = vrrp_send_pkt(vrrp, addr);
 			if (ret < 0) {
 				log_message(LOG_INFO, "VRRP_Instance(%s) Cant sent advert to %s (%m)"
-						    , vrrp->iname, inet_sockaddrtos(addr));
+						    , vrrp->iname, inet_sockaddrtos(addr, &buf));
 			}
 		}
 	} else {

@@ -185,8 +185,9 @@ static void
 dump_unicast_peer(void *data)
 {
 	struct sockaddr_storage *peer = data;
+	util_buf_t buf;
 
-	log_message(LOG_INFO, "     %s", inet_sockaddrtos(peer));
+	log_message(LOG_INFO, "     %s", inet_sockaddrtos(peer, &buf));
 }
 
 static void
@@ -228,6 +229,7 @@ dump_vrrp(void *data)
 {
 	vrrp_t *vrrp = data;
 	char auth_data[sizeof(vrrp->auth_data) + 1];
+	util_buf_t buf;
 
 	log_message(LOG_INFO, " VRRP Instance = %s", vrrp->iname);
 	log_message(LOG_INFO, "   Using VRRPv%d", vrrp->version);
@@ -242,7 +244,7 @@ dump_vrrp(void *data)
 		log_message(LOG_INFO, "   VRRP interface tracking disabled");
 	if (vrrp->saddr.ss_family)
 		log_message(LOG_INFO, "   Using src_ip = %s"
-				    , inet_sockaddrtos(&vrrp->saddr));
+				    , inet_sockaddrtos(&vrrp->saddr, &buf));
 	if (vrrp->lvs_syncd_if)
 		log_message(LOG_INFO, "   Running LVS sync daemon on interface = %s",
 		       vrrp->lvs_syncd_if);

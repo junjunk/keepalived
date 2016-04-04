@@ -112,9 +112,9 @@ in_csum(u_short *addr, int len, int csum, int *acc)
 
 /* IP network to ascii representation */
 char *
-inet_ntop2(uint32_t ip)
+inet_ntop2(uint32_t ip, util_buf_t *buffers)
 {
-	static char buf[16];
+	char *buf = buffers->buf;
 	unsigned char *bytep;
 
 	bytep = (unsigned char *) &(ip);
@@ -284,9 +284,9 @@ inet_sockaddrtos2(struct sockaddr_storage *addr, char *addr_str)
 }
 
 char *
-inet_sockaddrtos(struct sockaddr_storage *addr)
+inet_sockaddrtos(struct sockaddr_storage *addr, util_buf_t *buffer)
 {
-	static char addr_str[INET6_ADDRSTRLEN];
+	char *addr_str = buffer->addr_str;
 	inet_sockaddrtos2(addr, addr_str);
 	return addr_str;
 }
@@ -308,13 +308,13 @@ inet_sockaddrport(struct sockaddr_storage *addr)
 }
 
 char *
-inet_sockaddrtopair(struct sockaddr_storage *addr)
+inet_sockaddrtopair(struct sockaddr_storage *addr, util_buf_t *buffer)
 {
-	static char addr_str[INET6_ADDRSTRLEN + 1];
-	static char ret[sizeof(addr_str) + 16];
+	char *addr_str = buffer->sockaddrtopair.addr_str;
+	char *ret = buffer->sockaddrtopair.ret;
 
 	inet_sockaddrtos2(addr, addr_str);
-	snprintf(ret, sizeof(ret) - 1, "[%s]:%d"
+	snprintf(ret, sizeof(buffer->sockaddrtopair.ret) - 1, "[%s]:%d"
 		, addr_str
 		, ntohs(inet_sockaddrport(addr)));
 	return ret;

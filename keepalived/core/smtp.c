@@ -95,6 +95,7 @@ static int
 connection_error(thread_t * thread)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	log_message(LOG_INFO, "SMTP connection ERROR to %s."
 			    , FMT_SMTP_HOST());
@@ -105,6 +106,7 @@ static int
 connection_timeout(thread_t * thread)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	log_message(LOG_INFO, "Timeout connecting SMTP server %s."
 			    , FMT_SMTP_HOST());
@@ -115,6 +117,9 @@ static int
 connection_in_progress(thread_t * thread)
 {
 	int status;
+#ifdef _DEBUG_
+	util_buf_t buf;
+#endif
 
 	DBG("SMTP connection to %s now IN_PROGRESS.",
 	    FMT_SMTP_HOST());
@@ -134,6 +139,7 @@ static int
 connection_success(thread_t * thread)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	log_message(LOG_INFO, "Remote SMTP server %s connected."
 			    , FMT_SMTP_HOST());
@@ -153,6 +159,7 @@ smtp_read_thread(thread_t * thread)
 	char *reply;
 	int rcv_buffer_size = 0;
 	int status = -1;
+	util_buf_t buf;
 
 	smtp = THREAD_ARG(thread);
 
@@ -255,6 +262,7 @@ static int
 smtp_send_thread(thread_t * thread)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	if (thread->type == THREAD_WRITE_TIMEOUT) {
 		log_message(LOG_INFO, "Timeout sending data to remote SMTP server %s."
@@ -288,6 +296,7 @@ static int
 connection_code(thread_t * thread, int status)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	if (status == 220) {
 		smtp->stage++;
@@ -324,6 +333,7 @@ static int
 helo_code(thread_t * thread, int status)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	if (status == 250) {
 		smtp->stage++;
@@ -357,6 +367,7 @@ static int
 mail_code(thread_t * thread, int status)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	if (status == 250) {
 		smtp->stage++;
@@ -397,6 +408,7 @@ rcpt_code(thread_t * thread, int status)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
 	char *fetched_email;
+	util_buf_t buf;
 
 	if (status == 250) {
 		smtp->email_it++;
@@ -430,6 +442,7 @@ static int
 data_code(thread_t * thread, int status)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	if (status == 354) {
 		smtp->stage++;
@@ -540,6 +553,7 @@ static int
 body_code(thread_t * thread, int status)
 {
 	smtp_t *smtp = THREAD_ARG(thread);
+	util_buf_t buf;
 
 	if (status == 250) {
 		log_message(LOG_INFO, "SMTP alert successfully sent.");
@@ -602,6 +616,7 @@ smtp_alert(real_server_t * rs, vrrp_t * vrrp,
 	   vrrp_sgroup_t * vgroup, const char *subject, const char *body)
 {
 	smtp_t *smtp;
+	util_buf_t buf;
 
 	/* Only send mail if email specified */
 	if (!LIST_ISEMPTY(global_data->email) && global_data->smtp_server.ss_family != 0) {
