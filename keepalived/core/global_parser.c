@@ -146,6 +146,17 @@ trap_handler(vector_t *strvec)
 }
 #endif
 
+static void
+checker_threads_handler(vector_t *strvec)
+{
+	global_data->checker_threads = strtoul(vector_slot(strvec,1), NULL, 10);
+
+	if (errno == ERANGE || errno == EINVAL) {
+		log_message(LOG_INFO, "checker_threads: Invalid value");
+		global_data->checker_threads = 0;
+	}
+}
+
 void
 global_init_keywords(void)
 {
@@ -164,6 +175,7 @@ global_init_keywords(void)
 	install_keyword("vrrp_garp_master_refresh", &vrrp_garp_refresh_handler);
 	install_keyword("vrrp_garp_master_refresh_repeat", &vrrp_garp_refresh_rep_handler);
 	install_keyword("vrrp_version", &vrrp_version_handler);
+	install_keyword("checker_threads", &checker_threads_handler);
 #ifdef _WITH_SNMP_
 	install_keyword("enable_traps", &trap_handler);
 #endif
