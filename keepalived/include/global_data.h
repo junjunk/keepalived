@@ -60,6 +60,7 @@ typedef struct _data {
 #ifdef _WITH_SNMP_
 	int				enable_traps;
 #endif
+	size_t				checker_threads;
 } data_t;
 
 /* Global vars exported */

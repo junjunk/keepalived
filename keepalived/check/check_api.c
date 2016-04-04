@@ -40,7 +40,6 @@
 
 /* Global vars */
 static checker_id_t ncheckers = 0;
-size_t nmasters = 32;
 list checkers_queue;
 lock_t checkers_lock __attribute__ ((aligned));
 list checkers_masters;
@@ -356,7 +355,12 @@ check_masters_init(void)
 
 	lock_init(&checkers_lock);
 	checkers_masters = alloc_list(NULL, NULL);
-	for(i=0; i<nmasters;i++)
+
+	/* No valid value set, use default */
+	if (global_data->checker_threads == 0)
+		global_data->checker_threads = 32;
+
+	for(i=0; i < global_data->checker_threads; i++)
 	{
 		checker_thread_t *t = MALLOC(sizeof(*t));
 		lock_init(&t->lock);
