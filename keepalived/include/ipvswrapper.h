@@ -88,6 +88,12 @@ do {						\
 		UNSET_ALIVE((V));		\
 } while (0)
 
+struct ipvs_args {
+	ipvs_service_t srule;
+	ipvs_dest_t drule;
+	ipvs_daemon_t daemonrule;
+};
+
 /* prototypes */
 extern int ipvs_start(void);
 extern void ipvs_stop(void);
