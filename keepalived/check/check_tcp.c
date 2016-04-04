@@ -104,6 +104,7 @@ tcp_eplilog(thread_t * thread, int is_success)
 	checker_t *checker;
 	tcp_check_t *tcp_check;
 	long delay;
+	util_buf_t buf;
 
 	checker = THREAD_ARG(thread);
 	tcp_check = CHECKER_ARG(checker);
@@ -149,6 +150,7 @@ tcp_check_thread(thread_t * thread)
 {
 	checker_t *checker;
 	int status;
+	util_buf_t buf;
 
 	checker = THREAD_ARG(thread);
 	status = tcp_socket_state(thread->u.fd, thread, tcp_check_thread);

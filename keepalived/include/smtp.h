@@ -89,7 +89,7 @@ typedef struct _smtp {
 #define SMTP_SEND_CMD    "\r\n.\r\n"
 #define SMTP_QUIT_CMD    "QUIT\r\n"
 
-#define FMT_SMTP_HOST()	inet_sockaddrtopair(&global_data->smtp_server)
+#define FMT_SMTP_HOST()	inet_sockaddrtopair(&global_data->smtp_server, &buf)
 
 /* Prototypes defs */
 extern void smtp_alert(real_server_t *, vrrp_t *, vrrp_sgroup_t *,

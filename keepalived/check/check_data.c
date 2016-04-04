@@ -100,17 +100,18 @@ static void
 dump_vsg_entry(void *data)
 {
 	virtual_server_group_entry_t *vsg_entry = data;
+	util_buf_t buf;
 
 	if (vsg_entry->vfwmark)
 		log_message(LOG_INFO, "   FWMARK = %u", vsg_entry->vfwmark);
 	else if (vsg_entry->range)
 		log_message(LOG_INFO, "   VIP Range = %s-%d, VPORT = %d"
-				    , inet_sockaddrtos(&vsg_entry->addr)
+				    , inet_sockaddrtos(&vsg_entry->addr, &buf)
 				    , vsg_entry->range
 				    , ntohs(inet_sockaddrport(&vsg_entry->addr)));
 	else
 		log_message(LOG_INFO, "   VIP = %s, VPORT = %d"
-				    , inet_sockaddrtos(&vsg_entry->addr)
+				    , inet_sockaddrtos(&vsg_entry->addr, &buf)
 				    , ntohs(inet_sockaddrport(&vsg_entry->addr)));
 }
 void
@@ -166,6 +167,7 @@ static void
 dump_vs(void *data)
 {
 	virtual_server_t *vs = data;
+	util_buf_t buf;
 
 	if (vs->vsgname)
 		log_message(LOG_INFO, " VS GROUP = %s", vs->vsgname);
@@ -173,7 +175,8 @@ dump_vs(void *data)
 		log_message(LOG_INFO, " VS FWMARK = %u", vs->vfwmark);
 	else
 		log_message(LOG_INFO, " VIP = %s, VPORT = %d"
-				    , inet_sockaddrtos(&vs->addr), ntohs(inet_sockaddrport(&vs->addr)));
+				    , inet_sockaddrtos(&vs->addr, &buf)
+				    , ntohs(inet_sockaddrport(&vs->addr)));
 	if (vs->virtualhost)
 		log_message(LOG_INFO, "   VirtualHost = %s", vs->virtualhost);
 	log_message(LOG_INFO, "   delay_loop = %lu, lb_algo = %s",
@@ -185,7 +188,7 @@ dump_vs(void *data)
 		       vs->timeout_persistence);
 	if (vs->granularity_persistence)
 		log_message(LOG_INFO, "   persistence granularity = %s",
-		       inet_ntop2(vs->granularity_persistence));
+		       inet_ntop2(vs->granularity_persistence, &buf));
 	log_message(LOG_INFO, "   protocol = %s",
 	       (vs->service_type == IPPROTO_TCP) ? "TCP" : "UDP");
 	log_message(LOG_INFO, "   alpha is %s, omega is %s",
@@ -283,9 +286,10 @@ static void
 dump_rs(void *data)
 {
 	real_server_t *rs = data;
+	util_buf_t buf;
 
 	log_message(LOG_INFO, "   RIP = %s, RPORT = %d, WEIGHT = %d"
-			    , inet_sockaddrtos(&rs->addr)
+			    , inet_sockaddrtos(&rs->addr, &buf)
 			    , ntohs(inet_sockaddrport(&rs->addr))
 			    , rs->weight);
 	if (rs->inhibit)
@@ -369,6 +373,7 @@ format_vs (virtual_server_t *vs)
 {
 	/* alloc large buffer because of unknown length of vs->vsgname */
 	static char ret[512];
+	util_buf_t buf;
 
 	if (vs->vsgname)
 		snprintf (ret, sizeof (ret) - 1, "[%s]:%d"
@@ -378,7 +383,7 @@ format_vs (virtual_server_t *vs)
 		snprintf (ret, sizeof (ret) - 1, "FWM %u", vs->vfwmark);
 	else
 		snprintf(ret, sizeof(ret) - 1, "%s"
-			, inet_sockaddrtopair(&vs->addr));
+			, inet_sockaddrtopair(&vs->addr, &buf));
 
 	return ret;
 }

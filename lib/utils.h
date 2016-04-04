@@ -45,13 +45,27 @@
 
 #define STR(x)  #x
 
+typedef union {
+	/* inet_ntop2 */
+	char buf[16];
+
+	/* inet_sockaddrtos */
+	char addr_str[INET6_ADDRSTRLEN];
+
+	/* inet_sockaddrtopair */
+	struct {
+		char addr_str[INET6_ADDRSTRLEN + 1];
+		char ret[INET6_ADDRSTRLEN + 1 + 16];
+	} sockaddrtopair;
+} util_buf_t;
+
 /* global vars exported */
 extern unsigned long debug;
 
 /* Prototypes defs */
 extern void dump_buffer(char *, int);
 extern u_short in_csum(u_short *, int, int, int *);
-extern char *inet_ntop2(uint32_t);
+extern char *inet_ntop2(uint32_t, util_buf_t *);
 extern char *inet_ntoa2(uint32_t, char *);
 extern uint8_t inet_stom(char *);
 extern uint8_t inet_stor(char *);
@@ -60,9 +74,9 @@ extern int inet_stosockaddr(char *, char *, struct sockaddr_storage *);
 extern int inet_ip4tosockaddr(struct in_addr *, struct sockaddr_storage *);
 extern int inet_ip6tosockaddr(struct in6_addr *, struct sockaddr_storage *);
 extern int inet_ip6scopeid(uint32_t, struct sockaddr_storage *);
-extern char *inet_sockaddrtos(struct sockaddr_storage *);
+extern char *inet_sockaddrtos(struct sockaddr_storage *, util_buf_t *);
 extern char *inet_sockaddrtos2(struct sockaddr_storage *, char *);
-extern char *inet_sockaddrtopair(struct sockaddr_storage *addr);
+extern char *inet_sockaddrtopair(struct sockaddr_storage *addr, util_buf_t *);
 extern uint16_t inet_sockaddrport(struct sockaddr_storage *);
 extern uint32_t inet_sockaddrip4(struct sockaddr_storage *);
 extern int inet_sockaddrip6(struct sockaddr_storage *, struct in6_addr *);

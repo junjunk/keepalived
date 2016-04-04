@@ -101,6 +101,8 @@ vrrp_print(FILE *file, void *data)
 {
 	vrrp_t *vrrp = data;
 	char auth_data[sizeof(vrrp->auth_data) + 1];
+	util_buf_t buf;
+
 	fprintf(file, " VRRP Instance = %s\n", vrrp->iname);
 	fprintf(file, " VRRP Version = %d\n", vrrp->version);
 	if (vrrp->family == AF_INET6)
@@ -108,7 +110,7 @@ vrrp_print(FILE *file, void *data)
 	if (vrrp->state == VRRP_STATE_BACK) {
 		fprintf(file, "   State = BACKUP\n");
 		fprintf(file, "   Master router = %s\n",
-			inet_sockaddrtos(&vrrp->master_saddr));
+			inet_sockaddrtos(&vrrp->master_saddr, &buf));
 		fprintf(file, "   Master priority = %d\n",
 			vrrp->master_priority);
 	}
@@ -123,7 +125,7 @@ vrrp_print(FILE *file, void *data)
 	fprintf(file, "   Listening device = %s\n", IF_NAME(vrrp->ifp));
 	if (vrrp->dont_track_primary)
 		fprintf(file, "   VRRP interface tracking disabled\n");
-	fprintf(file, "   Using src_ip = %s\n", inet_sockaddrtos(&vrrp->saddr));
+	fprintf(file, "   Using src_ip = %s\n", inet_sockaddrtos(&vrrp->saddr, &buf));
 	if (vrrp->lvs_syncd_if)
 		fprintf(file, "   Runing LVS sync daemon on interface = %s\n",
 		       vrrp->lvs_syncd_if);
@@ -270,6 +272,7 @@ address_print(FILE *file, void *data)
 	ip_address_t *ipaddr = data;
 	char *broadcast = (char *) MALLOC(21);
 	char *addr_str = (char *) MALLOC(41);
+	util_buf_t buf;
 
 	if (IP_IS6(ipaddr)) {
 		inet_ntop(AF_INET6, &ipaddr->u.sin6_addr, addr_str, 41);
@@ -277,7 +280,7 @@ address_print(FILE *file, void *data)
 		inet_ntop(AF_INET, &ipaddr->u.sin.sin_addr, addr_str, 41);
 	if (ipaddr->u.sin.sin_brd.s_addr)
 		snprintf(broadcast, 20, " brd %s",
-			 inet_ntop2(ipaddr->u.sin.sin_brd.s_addr));
+			 inet_ntop2(ipaddr->u.sin.sin_brd.s_addr, &buf));
 	}
 
 	fprintf(file, "     %s/%d%s dev %s scope %s%s%s\n"
@@ -379,12 +382,13 @@ if_print(FILE *file, void * data)
 	interface_t *ifp = tip->ifp;
 	char addr_str[41];
 	int weight = tip->weight;
+	util_buf_t buf;
 
 	fprintf(file, "------< NIC >------\n");
 	fprintf(file, " Name = %s\n", ifp->ifname);
 	fprintf(file, " index = %d\n", ifp->ifindex);
 	fprintf(file, " IPv4 address = %s\n",
-		inet_ntop2(ifp->sin_addr.s_addr));
+		inet_ntop2(ifp->sin_addr.s_addr, &buf));
 	inet_ntop(AF_INET6, &ifp->sin6_addr, addr_str, 41);
 	fprintf(file, " IPv6 address = %s\n", addr_str);
 
