@@ -62,6 +62,7 @@ clear_service_rs(virtual_server_t * vs, list l)
 	long weight_sum;
 	long down_threshold = vs->quorum - vs->hysteresis;
 	util_buf_t buf;
+	FMT_VS_BUF;
 
 	for (e = LIST_HEAD(l); e; ELEMENT_NEXT(e)) {
 		rs = ELEMENT_DATA(e);
@@ -156,6 +157,7 @@ init_service_rs(virtual_server_t * vs)
 {
 	element e;
 	real_server_t *rs;
+	FMT_VS_BUF;
 
         if (LIST_ISEMPTY(vs->rs)) {
 		log_message(LOG_WARNING, "VS [%s] has no configured RS! Skipping RS activation."
@@ -266,6 +268,7 @@ perform_quorum_state(virtual_server_t *vs, int add)
 {
 	element e;
 	real_server_t *rs;
+	FMT_VS_BUF;
 
 	if (LIST_ISEMPTY(vs->rs))
 		return;
@@ -292,6 +295,7 @@ update_quorum_state(virtual_server_t * vs)
 	long up_threshold = vs->quorum + vs->hysteresis;
 	long down_threshold = vs->quorum - vs->hysteresis;
 	util_buf_t buf;
+	FMT_VS_BUF;
 
 	/* If we have just gained quorum, it's time to consider notify_up. */
 	if (vs->quorum_state == DOWN &&
@@ -378,6 +382,7 @@ perform_svr_state(int alive, virtual_server_t * vs, real_server_t * rs)
 	 * | 1           | 1     | first check succeeded w/o alpha mode, unreachable here
 	 */
 	util_buf_t buf;
+	FMT_VS_BUF;
 
 	if (!ISALIVE(rs) && alive) {
 		log_message(LOG_INFO, "%s service %s to VS %s"
@@ -442,6 +447,7 @@ update_svr_wgt(int weight, virtual_server_t * vs, real_server_t * rs
 		, int update_quorum)
 {
 	util_buf_t buf;
+	FMT_VS_BUF;
 
 	if (weight != rs->weight) {
 		log_message(LOG_INFO, "Changing weight from %d to %d for %s service %s of VS %s"
@@ -693,6 +699,7 @@ clear_diff_services(void)
 	element e;
 	list l = old_check_data->vs;
 	virtual_server_t *vs, *new_vs;
+	FMT_VS_BUF;
 
 	/* If old config didn't own vs then nothing return */
 	if (LIST_ISEMPTY(l))

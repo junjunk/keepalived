@@ -213,6 +213,7 @@ ipvs_group_cmd(int cmd, virtual_server_t * vs, real_server_t * rs)
 void
 ipvs_set_rule(int cmd, virtual_server_t * vs, real_server_t * rs)
 {
+	FMT_VS_BUF;
 	/* Clean up target rule */
 	memset(urule, 0, sizeof (struct ip_vs_rule_user));
 
@@ -598,6 +599,7 @@ void
 ipvs_set_rule(int cmd, virtual_server_t * vs,
 	      real_server_t * rs, struct ipvs_args *args)
 {
+	FMT_VS_BUF;
 	ipvs_service_t *srule = &args->srule;
 	ipvs_dest_t *drule = &args->drule;
 
