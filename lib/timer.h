@@ -27,8 +27,16 @@
 
 typedef struct timeval timeval_t;
 
+/* Used as storage for monotonic_timeoftheday */
+typedef struct {
+	timeval_t now;
+	timeval_t mono_date;
+	timeval_t drift;
+} time_storage_t;
+
 /* Global vars */
-extern timeval_t time_now;
+extern time_storage_t def_time;
+#define time_now def_time.now
 
 /* Some defines */
 #define TIME_MAX_FORWARD_US	2000000
@@ -52,7 +60,7 @@ extern timeval_t time_now;
 /* prototypes */
 extern timeval_t timer_now(void);
 extern timeval_t set_time_now(void);
-extern timeval_t set_time(timeval_t *time);
+extern timeval_t set_time(time_storage_t*);
 extern timeval_t timer_dup(timeval_t);
 extern int timer_cmp(timeval_t, timeval_t);
 extern timeval_t timer_sub(timeval_t, timeval_t);

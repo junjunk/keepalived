@@ -59,7 +59,7 @@ thread_init_master(thread_master_t *master)
 		assert(0);
 	}
 	master->epollfd = epollfd;
-	timer_reset_lazy(master->time_now);
+	timer_reset_lazy(TIME_NOW(master));
 }
 
 thread_master_t *
@@ -345,7 +345,7 @@ thread_add_io(unsigned char type, thread_master_t * m,
 
 	/* Compute read timeout value */
 	set_time_master(m);
-	thread->sands = timer_add_long(m->time_now, timer);
+	thread->sands = timer_add_long(TIME_NOW(m), timer);
 
 	/* Sort the thread. */
 	thread_tree_add_timeval(&m->wait, thread);
@@ -387,7 +387,7 @@ thread_add_timer(thread_master_t * m, int (*func) (thread_t *)
 
 	/* Do we need jitter here? */
 	set_time_master(m);
-	thread->sands = timer_add_long(m->time_now, timer);
+	thread->sands = timer_add_long(TIME_NOW(m), timer);
 
 	/* Sort by timeval. */
 	thread_tree_add_timeval(&m->wait, thread);
@@ -415,7 +415,7 @@ thread_add_child(thread_master_t * m, int (*func) (thread_t *)
 
 	/* Compute write timeout value */
 	set_time_master(m);
-	thread->sands = timer_add_long(m->time_now, timer);
+	thread->sands = timer_add_long(TIME_NOW(m), timer);
 
 	/* Sort by timeval. */
 	thread_tree_add_timeval(&m->wait, thread);
@@ -563,7 +563,7 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 
 	/* Take care about monothonic clock */
 	if (!timer_isnull(timer_min)) {
-		timer_min = timer_sub(timer_min, m->time_now);
+		timer_min = timer_sub(timer_min, TIME_NOW(m));
 		if (timer_min.tv_sec < 0) {
 			timer_reset(timer_min);
 		} else if (timer_min.tv_sec >= 1) {
@@ -587,7 +587,7 @@ process_timeout_threads(thread_master_t *m)
 
 	while ((node = rb_first(root))) {
 		t = rb_entry(node, thread_t, node);
-		if (timer_cmp(m->time_now, t->sands) < 0)
+		if (timer_cmp(TIME_NOW(m), t->sands) < 0)
 			break;
 		rb_erase(node, root);
 
@@ -913,5 +913,5 @@ launch_scheduler(void)
 inline void
 set_time_master(thread_master_t *master)
 {
-	set_time(&master->time_now);
+	set_time(&master->tstore);
 }

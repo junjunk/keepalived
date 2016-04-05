@@ -684,7 +684,7 @@ http_check_thread(thread_t * thread)
 
 			if (http_get_check->proto == PROTO_SSL) {
 				timeout = timer_long(thread->sands)
-					- timer_long(thread->master->time_now);
+					- timer_long(TIME_NOW(thread->master));
 				if (thread->type != THREAD_WRITE_TIMEOUT &&
 				    thread->type != THREAD_READ_TIMEOUT)
 					ret = ssl_connect(thread, new_req);
