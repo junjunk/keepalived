@@ -369,21 +369,19 @@ dump_check_data(check_data_t *data)
 }
 
 char *
-format_vs (virtual_server_t *vs)
+format_vs (virtual_server_t *vs, fmt_vs_buf_t *fbuf)
 {
-	/* alloc large buffer because of unknown length of vs->vsgname */
-	static char ret[512];
 	util_buf_t buf;
 
 	if (vs->vsgname)
-		snprintf (ret, sizeof (ret) - 1, "[%s]:%d"
+		snprintf (fbuf->ret, sizeof (fbuf->ret) - 1, "[%s]:%d"
 			, vs->vsgname
 			, ntohs(inet_sockaddrport(&vs->addr)));
 	else if (vs->vfwmark)
-		snprintf (ret, sizeof (ret) - 1, "FWM %u", vs->vfwmark);
+		snprintf (fbuf->ret, sizeof (fbuf->ret) - 1, "FWM %u", vs->vfwmark);
 	else
-		snprintf(ret, sizeof(ret) - 1, "%s"
+		snprintf(fbuf->ret, sizeof(fbuf->ret) - 1, "%s"
 			, inet_sockaddrtopair(&vs->addr, &buf));
 
-	return ret;
+	return fbuf->ret;
 }

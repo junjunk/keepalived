@@ -215,7 +215,12 @@ static inline int inaddr_equal(sa_family_t family, void *addr1, void *addr2)
 #define UNSET_ALIVE(S)	((S)->alive = 0)
 #define VHOST(V)	((V)->virtualhost)
 #define FMT_RS(R) (inet_sockaddrtopair (&(R)->addr, &buf))
-#define FMT_VS(V) (format_vs((V)))
+#define FMT_VS(V) (format_vs((V), &_fbuf))
+/* Buffer passed to format_vs */
+/* alloc large buffer because of unknown length of vs->vsgname */
+typedef union { char ret[512]; } fmt_vs_buf_t;
+/* Alloc buffer */
+#define FMT_VS_BUF fmt_vs_buf_t _fbuf
 
 #define VS_ISEQ(X,Y)	(sockstorage_equal(&(X)->addr,&(Y)->addr)			&&\
 			 (X)->vfwmark                 == (Y)->vfwmark			&&\
@@ -257,6 +262,6 @@ extern void set_rsgroup(char *);
 extern check_data_t *alloc_check_data(void);
 extern void free_check_data(check_data_t *);
 extern void dump_check_data(check_data_t *);
-extern char *format_vs (virtual_server_t *);
+extern char *format_vs (virtual_server_t *, fmt_vs_buf_t *);
 
 #endif
