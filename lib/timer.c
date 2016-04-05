@@ -25,8 +25,8 @@
 #include <errno.h>
 #include "timer.h"
 
-/* time_now holds current time */
-timeval_t time_now = { tv_sec: 0, tv_usec: 0 };
+/* Storage for current time */
+time_storage_t def_time;
 
 /* set a timer to a specific value */
 timeval_t
@@ -112,10 +112,14 @@ timer_add_long(timeval_t a, long b)
  * normally return 0, unless <now> is NULL, in which case it will return -1 and
  * set errno to EFAULT.
  */
-int monotonic_gettimeofday(timeval_t *now)
+int monotonic_gettimeofday(time_storage_t *storage)
 {
-	static timeval_t mono_date;
-	static timeval_t drift; /* warning: signed seconds! */
+	if (NULL == storage)
+		storage = &def_time;
+
+	timeval_t *now = &storage->now;
+	timeval_t *mono_date = &storage->mono_date;
+	timeval_t *drift = &storage->drift; /* warning: signed seconds! */
 	timeval_t sys_date, adjusted, deadline;
 
 	if (!now) {
@@ -128,32 +132,32 @@ int monotonic_gettimeofday(timeval_t *now)
 	gettimeofday(&sys_date, NULL);
 
 	/* on first call, we set mono_date to system date */
-	if (mono_date.tv_sec == 0) {
-		mono_date = sys_date;
-		timer_reset(drift);
-		*now = mono_date;
+	if (mono_date->tv_sec == 0) {
+		*mono_date = sys_date;
+		timer_reset(*drift);
+		*now = *mono_date;
 		return 0;
 	}
 
 	/* compute new adjusted time by adding the drift offset */
-	adjusted = timer_add(sys_date, drift);
+	adjusted = timer_add(sys_date, *drift);
 
 	/* check for jumps in the past, and bound to last date */
-	if (timer_cmp(adjusted, mono_date) < 0)
+	if (timer_cmp(adjusted, *mono_date) < 0)
 		goto fixup;
 
 	/* check for jumps too far in the future, and bound them to
 	 * TIME_MAX_FORWARD_US microseconds.
 	 */
-	deadline = timer_add_long(mono_date, TIME_MAX_FORWARD_US);
+	deadline = timer_add_long(*mono_date, TIME_MAX_FORWARD_US);
 	if (timer_cmp (adjusted, deadline) >= 0) {
-		mono_date = deadline;
+		*mono_date = deadline;
 		goto fixup;
 	}
 
 	/* adjusted date is correct */
-	mono_date = adjusted;
-	*now = mono_date;
+	*mono_date = adjusted;
+	*now = *mono_date;
 	return 0;
 
  fixup:
@@ -162,8 +166,8 @@ int monotonic_gettimeofday(timeval_t *now)
 	 * play with negative carries in all computations, we take
 	 * care of always having the microseconds positive.
 	 */
-	drift = timer_sub(mono_date, sys_date);
-	*now = mono_date;
+	*drift = timer_sub(*mono_date, sys_date);
+	*now = *mono_date;
 	return 0;
 }
 
@@ -171,37 +175,38 @@ int monotonic_gettimeofday(timeval_t *now)
 timeval_t
 timer_now(void)
 {
-	timeval_t curr_time;
+	time_storage_t storage;
+	memcpy(&storage, &def_time, sizeof(storage));
 	int old_errno = errno;
 
 	/* init timer */
-	if (monotonic_gettimeofday(&curr_time)) {
-		timer_reset(curr_time);
+	if (monotonic_gettimeofday(&storage)) {
+		timer_reset(storage.now);
 		errno = old_errno;
 	}
 
-	return curr_time;
+	return storage.now;
 }
 
 /* sets and returns current time from system time */
 timeval_t
-set_time(timeval_t *time)
+set_time(time_storage_t *storage)
 {
 	int old_errno = errno;
 
 	/* init timer */
-	if (monotonic_gettimeofday(time)) {
-		timer_reset(*time);
+	if (monotonic_gettimeofday(storage)) {
+		timer_reset(storage->now);
 		errno = old_errno;
 	}
 
-	return *time;
+	return storage->now;
 }
 
 inline timeval_t
 set_time_now(void)
 {
-	return set_time(&time_now);
+	return set_time(&def_time);
 }
 
 /* timer sub from current time */

@@ -78,9 +78,10 @@ typedef struct _thread_master {
 
 	int epollfd;
 	unsigned long alloc;
-	timeval_t time_now;
+	time_storage_t tstore;
 	int stop_flag;
 } thread_master_t;
+#define TIME_NOW(m) (m->tstore.now)
 
 /* Thread types. */
 #define THREAD_READ		0

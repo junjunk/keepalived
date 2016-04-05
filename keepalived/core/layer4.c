@@ -119,7 +119,7 @@ tcp_socket_state(int fd, thread_t * thread, int (*func) (thread_t *))
 	 * Recompute the write timeout (or pending connection).
 	 */
 	if (status == EINPROGRESS) {
-		timer_min = timer_sub(thread->master->time_now, thread->sands);
+		timer_min = timer_sub(TIME_NOW(thread->master), thread->sands);
 		assert(thread_add_write(thread->master, func, THREAD_ARG(thread),
 				 thread->u.fd, timer_long(timer_min)));
 		return connect_in_progress;
