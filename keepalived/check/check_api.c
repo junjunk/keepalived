@@ -351,6 +351,13 @@ check_thread_run(void *arg)
 	return NULL;
 }
 
+static void
+checker_thread_free(void *data)
+{
+	checker_thread_t *t = data;
+	FREE(t);
+}
+
 void
 check_masters_init(void)
 {
@@ -358,7 +365,7 @@ check_masters_init(void)
 	/* pthreads will be started after register_checkers_thread */
 	size_t i;
 
-	checkers_masters = alloc_list(NULL, NULL);
+	checkers_masters = alloc_list(checker_thread_free, NULL);
 
 	/* No valid value set, use default */
 	if (global_data->checker_threads == 0)

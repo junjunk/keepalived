@@ -55,6 +55,7 @@ typedef struct _checker {
 } checker_t;
 
 typedef struct _checker_thread {
+	void (*free_func) (void *);
 	pthread_t pthread;
 	lock_t lock;
 	thread_master_t master;
