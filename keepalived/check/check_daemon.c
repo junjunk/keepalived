@@ -54,6 +54,7 @@ static void
 stop_check(void)
 {
 	/* Destroy master thread */
+	check_masters_stop();
 	signal_handler_destroy();
 	thread_destroy_master(master);
 	free_checkers_queue();
