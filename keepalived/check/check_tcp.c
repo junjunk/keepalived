@@ -109,6 +109,9 @@ tcp_eplilog(thread_t * thread, int is_success)
 	checker = THREAD_ARG(thread);
 	tcp_check = CHECKER_ARG(checker);
 
+	/* Closing socket only here or in tcp_connect_thread */
+	assert(!close(thread->u.fd));
+
 	if (is_success || tcp_check->retry_it > tcp_check->n_retry - 1) {
 		delay = checker->vs->delay_loop;
 		tcp_check->retry_it = 0;
@@ -141,6 +144,7 @@ tcp_eplilog(thread_t * thread, int is_success)
 		++tcp_check->retry_it;
 	}
 
+
 	/* Register next timer checker */
 	thread_add_timer(thread->master, tcp_connect_thread, checker, delay);
 }
@@ -163,7 +167,6 @@ tcp_check_thread(thread_t * thread)
 	case connect_in_progress:
 		break;
 	case connect_success:
-		close(thread->u.fd);
 		tcp_eplilog(thread, 1);
 		break;
 	case connect_timeout:
@@ -213,6 +216,7 @@ tcp_connect_thread(thread_t * thread)
 	/* handle tcp connection status & register check worker thread */
 	if(tcp_connection_state(fd, status, thread, tcp_check_thread,
 			co->connection_to)) {
+		/* Closing socket only here or in tcp_eplilog*/
 		assert(!close(fd));
 		log_message(LOG_INFO, "TCP socket bind failed. Rescheduling.");
 		thread_add_timer(thread->master, tcp_connect_thread, checker,
