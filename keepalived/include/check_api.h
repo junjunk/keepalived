@@ -105,8 +105,9 @@ extern void checker_set_dst_port(struct sockaddr_storage *, uint16_t);
 extern void check_masters_init(void);
 extern void check_masters_start(void);
 extern void check_masters_stop(void);
+extern int tcp_connect_thread(thread_t*);
+extern int http_connect_thread(thread_t*);
 checker_thread_t *get_rand_thread(void);
-thread_t *thread_add_timer_mt(thread_master_t * m,
-			      int (*func) (thread_t *) , void *arg, long timer);
-
+thread_t *thread_add_timer_mt(thread_master_t * m, int (*func) (thread_t *) , void *arg, long timer);
+int multi_thread_checker(checker_t *checker);
 #endif

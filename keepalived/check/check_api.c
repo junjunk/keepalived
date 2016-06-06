@@ -265,9 +265,15 @@ register_checkers_thread(void)
 			warmup = checker->warmup;
 			if (warmup)
 				warmup = warmup * rand() / RAND_MAX;
-			checker_thread_t *thread = get_rand_thread(); //XXX
-			thread_add_timer_mt(&thread->master, checker->launch, checker,
-					 BOOTSTRAP_DELAY + warmup);
+			if (multi_thread_checker(checker)) {
+				checker_thread_t *thread = get_rand_thread(); //XXX
+				thread_add_timer_mt(&thread->master, checker->launch, checker,
+						 BOOTSTRAP_DELAY + warmup);
+			}
+			else {
+				thread_add_timer(master, checker->launch, checker,
+						BOOTSTRAP_DELAY + warmup);
+			}
 		}
 	}
 }
@@ -443,4 +449,14 @@ thread_add_timer_mt(thread_master_t * m, int (*func) (thread_t *)
 	ret = thread_add_timer(&t->master, func, arg, timer);
 	unlock(&t->lock);
 	return ret;
+}
+
+int
+multi_thread_checker(checker_t *checker)
+{
+	if (checker->launch == tcp_connect_thread ||
+	    checker->launch == http_connect_thread) {
+		return true;
+	}
+	return false;
 }
