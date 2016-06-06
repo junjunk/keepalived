@@ -1,3 +1,10 @@
+keepalived (1:1.2.19-mthread2) lucid; urgency=low
+
+  * f0f7f3f Remove private keys to escape problems with uploading a package
+  * e09d366 Fix MISC_CHECK and other not multithreaded checks
+
+ -- Fedor Zhukov <azryve@yandex-team.ru>  Mon, 06 Jun 2016 19:22:16 +0300
+
 keepalived (1:1.2.19-mthread1) lucid; urgency=low
 
   * 3f17e76 Multithreading for TCP, HTTP, SSL checkers
