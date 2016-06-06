@@ -1,0 +1,9 @@
+1a3cfdc29f4e83e137b4e95130892339  usr/bin/genhash
+bede979f7a353caf5de8f68c6eb3eebe  usr/share/man/man5/keepalived.conf.5.gz
+7df9cfded7832e610bc5b7a5eac15945  usr/share/man/man1/genhash.1.gz
+79d4dbcbb1803ee25ea58cc7bf191bb6  usr/share/man/man8/keepalived.8.gz
+68b136b58e6ac29df0b59f7749441776  usr/share/doc/keepalived/changelog.Debian.gz
+ea7a739b3b39289107390ca779b9535a  usr/share/doc/keepalived/copyright
+b881ea205069f921f0745e8a0f429ddb  usr/share/snmp/mibs/VRRP-MIB
+4883c64fe4006b39fe03af334524603c  usr/share/snmp/mibs/KEEPALIVED-MIB
+31779e290ceccc5ba86b256c933e86ab  usr/sbin/keepalived

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+dh_handler() {
+#DEBHELPER#
+}
+
+test -e /etc/keepalived/Makefile && make -C /etc/keepalived stop && exit 0
+
+# falling back to dh_handler if Makefile has not stopped our daemon
+dh_handler

@@ -1,0 +1,2 @@
+doc/KEEPALIVED-MIB usr/share/snmp/mibs
+debian/default			etc/
