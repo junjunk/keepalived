@@ -1,0 +1,6 @@
+usr/bin
+usr/sbin
+etc/keepalived
+etc/default
+usr/share/doc/keepalived/samples
+usr/share/snmp/mibs

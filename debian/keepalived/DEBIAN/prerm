@@ -1,0 +1,19 @@
+#!/bin/sh
+
+dh_handler() {
+# Automatically added by dh_installinit
+if [ -x "/etc/init.d/keepalived" ]; then
+	if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+		invoke-rc.d keepalived stop || exit $?
+	else
+		/etc/init.d/keepalived stop || exit $?
+	fi
+fi
+# End automatically added section
+
+}
+
+test -e /etc/keepalived/Makefile && make -C /etc/keepalived stop && exit 0
+
+# falling back to dh_handler if Makefile has not stopped our daemon
+dh_handler
