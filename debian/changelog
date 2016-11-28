@@ -1,3 +1,9 @@
+keepalived (1:1.2.19-mthread3) trusty; urgency=low
+
+  * Trusty release
+
+ -- Fedor Zhukov <azryve@yandex-team.ru>  Thu, 29 Sep 2016 17:05:15 +0300
+
 keepalived (1:1.2.19-mthread2) lucid; urgency=low
 
   * f0f7f3f Remove private keys to escape problems with uploading a package
