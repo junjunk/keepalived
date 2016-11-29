@@ -1,15 +1,11 @@
 #!/usr/bin/make -f
 
-VER = `dpkg-parsechangelog | sed -nr 's/^Version: (.*:)?//p'`
 
 %:
 	dh $@ # --with=autotools-dev
 
 override_dh_auto_configure:
-	LIBS="-ldl -lpthread -lnl -L/usr/local/ssl/lib" CFLAGS="-I/usr/local/ssl/include -O0" dh_auto_configure -- --disable-vrrp --enable-snmp
-	# build without optimization
-	find . -name Makefile -exec perl -p -i -e 's/-O2/-O0/' {} \;
-#	echo -n "${VER}" > VERSION
+	LIBS="-ldl -lpthread -lnl" dh_auto_configure -- --disable-vrrp --enable-snmp
 
 override_dh_strip:
 	true
