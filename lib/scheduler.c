@@ -246,6 +246,8 @@ thread_destroy_tree(thread_master_t * m, struct rb_root * root)
 			 * so logging and assertion is not needed here */
 			epoll_ctl(t->master->epollfd, EPOLL_CTL_DEL
 				     , t->u.fd, NULL);
+		else if (t->type == THREAD_CHILD)
+			thread_list_delete(&m->child_hash[t->u.c.pid % PID_HASHSIZE], t);
 
 		t->type = THREAD_UNUSED;
 		thread_add_unuse(m, t);
