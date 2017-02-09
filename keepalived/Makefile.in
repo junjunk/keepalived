@@ -107,3 +107,5 @@ install:
 	install -d $(DESTDIR)$(mandir)/man8
 	install -m 644 ../doc/man/man5/keepalived.conf.5 $(DESTDIR)$(mandir)/man5
 	install -m 644 ../doc/man/man8/keepalived.8 $(DESTDIR)$(mandir)/man8
+
+.PHONY: all install uninstall clean distclean profile debug

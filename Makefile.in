@@ -76,3 +76,6 @@ tarball: mrproper
 
 rpm:
 	rpmbuild -ba keepalived.spec
+
+
+.PHONY: all install uninstall mrproper tarball rpm distclean debug profile
