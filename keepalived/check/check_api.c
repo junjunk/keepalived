@@ -406,14 +406,16 @@ check_masters_stop(void)
 {
 	element e;
 	checker_thread_t *t;
-	thread_master_t *m;
 
 	for (e = LIST_HEAD(checkers_masters); e; ELEMENT_NEXT(e))
 	{
 		t = ELEMENT_DATA(e);
-		m = &t->master;
+		t->master.stop_flag = 1;
+	}
 
-		m->stop_flag = 1;
+	for (e = LIST_HEAD(checkers_masters); e; ELEMENT_NEXT(e))
+	{
+		t = ELEMENT_DATA(e);
 		pthread_join(t->pthread, NULL);
 		assert(!lock_destroy(&t->lock));
 	}
