@@ -1,3 +1,9 @@
+keepalived (1:1.2.19-mthread5) trusty; urgency=medium
+
+  * ab38c26 Speed up config reload and stop
+
+ -- Fedor Zhukov <azryve@yandex-team.ru>  Mon, 13 Feb 2017 09:54:11 +0000
+
 keepalived (1:1.2.19-mthread4) trusty; urgency=medium
 
   * ed75ff9 Fix assert in thread_add_unuse for misc_checks at shutdown
