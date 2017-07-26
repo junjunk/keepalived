@@ -46,6 +46,7 @@
 #include "list.h"
 #include "vector.h"
 #include "timer.h"
+#include "lock.h"
 
 /* Typedefs */
 typedef unsigned int checker_id_t;
@@ -144,6 +145,7 @@ typedef struct _virtual_server {
 	time_t				lastupdated;
 	struct ip_vs_stats_user		stats;
 #endif
+	lock_t state_lock;          /* Syncronization between multiple checker threads */
 } virtual_server_t;
 
 /* Configuration data root */

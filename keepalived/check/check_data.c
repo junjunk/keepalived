@@ -27,6 +27,7 @@
 #include "memory.h"
 #include "utils.h"
 #include "ipwrapper.h"
+#include "lock.h"
 
 /* global vars */
 check_data_t *check_data = NULL;
@@ -253,6 +254,7 @@ alloc_vs(char *ip, char *port)
 	new->quorum = 1;
 	new->hysteresis = 0;
 	new->quorum_state = UP;
+	lock_init(&new->state_lock);
 
 	list_add(check_data->vs, new);
 }

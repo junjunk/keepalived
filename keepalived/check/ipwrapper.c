@@ -30,6 +30,7 @@
 #ifdef _WITH_SNMP_
   #include "check_snmp.h"
 #endif
+#include "lock.h"
 
 /* out-of-order functions declarations */
 static void update_quorum_state(virtual_server_t * vs);
@@ -291,6 +292,7 @@ perform_quorum_state(virtual_server_t *vs, int add)
 static void
 update_quorum_state(virtual_server_t * vs)
 {
+	lock(&vs->state_lock);
 	long weight_sum = weigh_live_realservers(vs);
 	long up_threshold = vs->quorum + vs->hysteresis;
 	long down_threshold = vs->quorum - vs->hysteresis;
@@ -328,7 +330,7 @@ update_quorum_state(virtual_server_t * vs)
 #ifdef _WITH_SNMP_
                check_snmp_quorum_trap(vs);
 #endif
-		return;
+		goto out;
 	}
 
 	/* If we have just lost quorum for the VS, we need to consider
@@ -366,8 +368,10 @@ update_quorum_state(virtual_server_t * vs)
 #ifdef _WITH_SNMP_
 		check_snmp_quorum_trap(vs);
 #endif
-		return;
+		goto out;
 	}
+out:
+	unlock(&vs->state_lock);
 }
 
 /* manipulate add/remove rs according to alive state */
@@ -383,7 +387,9 @@ perform_svr_state(int alive, virtual_server_t * vs, real_server_t * rs)
 	 */
 	util_buf_t buf;
 	FMT_VS_BUF;
+	int err = -1;
 
+	lock(&vs->state_lock);
 	if (!ISALIVE(rs) && alive) {
 		log_message(LOG_INFO, "%s service %s to VS %s"
 				    , (rs->inhibit) ? "Enabling" : "Adding"
@@ -392,7 +398,7 @@ perform_svr_state(int alive, virtual_server_t * vs, real_server_t * rs)
 		/* Add only if we have quorum or no sorry server */
 		if (vs->quorum_state == UP || !vs->s_svr || !ISALIVE(vs->s_svr)) {
 			if (ipvs_cmd(LVS_CMD_ADD_DEST, vs, rs))
-				return -1;
+				goto out;
 		}
 		rs->alive = alive;
 		if (rs->notify_up) {
@@ -421,7 +427,7 @@ perform_svr_state(int alive, virtual_server_t * vs, real_server_t * rs)
 		 */
 		if (vs->quorum_state == UP || !vs->s_svr || !ISALIVE(vs->s_svr)) {
 			if (ipvs_cmd(LVS_CMD_DEL_DEST, vs, rs))
-				return -1;
+				goto out;
 		}
 		rs->alive = alive;
 		if (rs->notify_down) {
@@ -438,7 +444,10 @@ perform_svr_state(int alive, virtual_server_t * vs, real_server_t * rs)
 		/* We may have lost quorum */
 		update_quorum_state(vs);
 	}
-	return 0;
+	err = 0;
+out:
+	unlock(&vs->state_lock);
+	return err;
 }
 
 /* Store new weight in real_server struct and then update kernel. */
