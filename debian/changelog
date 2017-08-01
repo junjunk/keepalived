@@ -1,3 +1,9 @@
+keepalived (1:1.2.19-mthread6) trusty; urgency=medium
+
+  * b18d75d Add state_lock for every virtual_server
+
+ -- Fedor Zhukov <azryve@yandex-team.ru>  Mon, 26 Jul 2017 16:54:11 +0000
+
 keepalived (1:1.2.19-mthread5) trusty; urgency=medium
 
   * ab38c26 Speed up config reload and stop
