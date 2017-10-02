@@ -180,6 +180,15 @@ status_code_handler(vector_t *strvec)
 }
 
 void
+dynamic_weight_handler(vector_t *strvec)
+{
+	http_checker_t *http_get_chk = CHECKER_GET();
+	url_t *url = LIST_TAIL_DATA(http_get_chk->url);
+
+	url->weight = 1;
+}
+
+void
 install_http_check_keyword(void)
 {
 	install_keyword("HTTP_GET", &http_get_handler);
@@ -188,11 +197,13 @@ install_http_check_keyword(void)
 	install_keyword("warmup", &warmup_handler);
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
+	install_keyword("dynamic_weight", &dynamic_weight_handler);
 	install_keyword("url", &url_handler);
 	install_sublevel();
 	install_keyword("path", &path_handler);
 	install_keyword("digest", &digest_handler);
 	install_keyword("status_code", &status_code_handler);
+	install_keyword("dynamic_weight", &dynamic_weight_handler);
 	install_sublevel_end();
 	install_sublevel_end();
 }
@@ -207,6 +218,7 @@ install_ssl_check_keyword(void)
 	install_keyword("warmup", &warmup_handler);
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
+	install_keyword("dynamic_weight", &dynamic_weight_handler);
 	install_keyword("url", &url_handler);
 	install_sublevel();
 	install_keyword("path", &path_handler);
@@ -413,6 +425,14 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 		}
 	}
 
+	// check conf options and weight value
+	if (fetched_url->weight) {
+	    if (checker->rs->weight != req->dynamic_weight)
+			update_svr_wgt(req->dynamic_weight, checker->vs, checker->rs, 1);
+	} else if (checker->rs->weight != checker->rs->iweight) {
+		update_svr_wgt(checker->rs->iweight, checker->vs, checker->rs, 1);
+	}
+
 	if (!svr_checker_up(checker->id, checker->rs)) {
 		switch (last_success) {
 			case none:
@@ -437,7 +457,7 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 
 /* Handle response stream performing MD5 updates */
 int
-http_process_response(request_t *req, int r, int do_md5)
+http_process_response(request_t *req, int r, int do_md5, int get_rs_weight)
 {
 	req->len += r;
 	if (!req->extracted) {
@@ -447,6 +467,8 @@ http_process_response(request_t *req, int r, int do_md5)
 			r = req->len - (req->extracted - req->buffer);
 			if (r && do_md5)
 				MD5_Update(&req->context, req->extracted, r);
+			if (r && get_rs_weight)
+				req->dynamic_weight = extract_dynamic_weight(req->extracted, req->len);
 			req->len = 0;
 		}
 	} else if (req->len) {
@@ -515,7 +537,8 @@ http_read_thread(thread_t * thread)
 	} else {
 
 		/* Handle response stream */
-		http_process_response(req, r, (url->digest != NULL));
+		// http_process_response(req, r, (url->digest != NULL));
+		http_process_response(req, r, (url->digest != NULL), url->weight);
 
 		/*
 		 * Register next http stream reader.
