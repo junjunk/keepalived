@@ -438,7 +438,7 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 			if (checker->rs->weight > req->dynamic_weight) {
 				value = checker->rs->weight
 					- CHECK_HTTP_MIN(checker->rs->weight * fetched_url->weight_coefficient/100,
-									 checker->rs->weight - req->dynamic_weight);
+					                 checker->rs->weight - req->dynamic_weight);
 			/* weight increasing */
 			} else {
 				value = checker->rs->weight
