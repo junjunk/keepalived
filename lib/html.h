@@ -26,8 +26,8 @@
 /* HTTP header tag */
 #define CONTENT_LENGTH	"Content-Length:"
 
-#define RS_WEIGHT_STRING "rs_weight="
-#define RS_WEIGHT_MINLEN 10
+#define RS_WEIGHT_STRING    "rs_weight="
+#define RS_WEIGHT_STRING_MINLEN 10
 
 /* Prototypes */
 extern int extract_content_length(char *buffer, int size);

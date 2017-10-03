@@ -523,6 +523,16 @@ A virtual_server can be a declaration of one of
                # checks to the same RS. Enabled by default, with
                # the maximum at delay_loop. Specify 0 to disable
                warmup <INT>
+
+               # Optional dynamic weight changes.
+               # Enable parse body answer, search for "rs_weight=<INT>".
+               # Disable by default.
+               # <INT> value as argument describes coefficient, which
+               # display weight change in percent.
+               # E.g value = 50, current weight = 105, parsed weigth = 200,
+               #   max(105 + 105*(value/100), 1) = max(157, 1) = 155 is
+               #   next weight
+               dynamic_weight <INT>
            } #HTTP_GET|SSL_GET
 
            #TCP healthchecker (bind to IP port)

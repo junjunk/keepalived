@@ -185,7 +185,7 @@ dynamic_weight_handler(vector_t *strvec)
 	http_checker_t *http_get_chk = CHECKER_GET();
 	url_t *url = LIST_TAIL_DATA(http_get_chk->url);
 
-	url->weight = 1;
+	url->weight_coefficient = CHECKER_VALUE_INT(strvec);
 }
 
 void
@@ -425,10 +425,31 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 		}
 	}
 
-	// check conf options and weight value
-	if (fetched_url->weight) {
-	    if (checker->rs->weight != req->dynamic_weight)
-			update_svr_wgt(req->dynamic_weight, checker->vs, checker->rs, 1);
+	/*
+	 * check conf options and weight value:
+	 * checker->rs->weight is current weight value;
+	 * req->dynamic_weight is parsed value
+	 */
+	if (fetched_url->weight_coefficient) {
+		if (checker->rs->weight != req->dynamic_weight) {
+			int value;
+
+			/* weight decreasing */
+			if (checker->rs->weight > req->dynamic_weight) {
+				value = checker->rs->weight
+					- CHECK_HTTP_MIN(checker->rs->weight * fetched_url->weight_coefficient/100,
+									 checker->rs->weight - req->dynamic_weight);
+			/* weight increasing */
+			} else {
+				value = checker->rs->weight
+					+ CHECK_HTTP_MAX(checker->rs->weight * fetched_url->weight_coefficient/100, 1);
+				if (value > req->dynamic_weight)
+					value = req->dynamic_weight;
+			}
+
+			update_svr_wgt(value, checker->vs, checker->rs, 1);
+			// update_svr_wgt(req->dynamic_weight, checker->vs, checker->rs, 1);
+		}
 	} else if (checker->rs->weight != checker->rs->iweight) {
 		update_svr_wgt(checker->rs->iweight, checker->vs, checker->rs, 1);
 	}
@@ -538,7 +559,7 @@ http_read_thread(thread_t * thread)
 
 		/* Handle response stream */
 		// http_process_response(req, r, (url->digest != NULL));
-		http_process_response(req, r, (url->digest != NULL), url->weight);
+		http_process_response(req, r, (url->digest != NULL), url->weight_coefficient);
 
 		/*
 		 * Register next http stream reader.

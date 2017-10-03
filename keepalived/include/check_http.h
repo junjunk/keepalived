@@ -61,7 +61,7 @@ typedef struct _url {
 	char				*path;
 	char				*digest;
 	int				status_code;
-	int				weight;
+	int				weight_coefficient;	/* dynamic_weight value */
 } url_t;
 
 typedef struct _http_checker {
@@ -92,6 +92,10 @@ typedef struct _http_checker {
 #define HTTP_ARG(X) ((X)->arg)
 #define HTTP_REQ(X) ((X)->req)
 #define FMT_HTTP_RS(C) FMT_CHK(C)
+
+/* check_http functions */
+#define CHECK_HTTP_MIN(a, b)	((a) < (b) ? (a) : (b))
+#define CHECK_HTTP_MAX(a, b)	((a) > (b) ? (a) : (b))
 
 /* Define prototypes */
 extern void install_http_check_keyword(void);

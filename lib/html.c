@@ -79,18 +79,20 @@ int extract_status_code(char *buffer, int size)
 	return inc;
 }
 
-/*   Return the http body weight value,
-	body starts with "rs_weight=" */
+/*
+ * Return the http body weight value,
+ * body starts with "rs_weight=" (see RS_WEIGHT_STRING)
+ */
 int extract_dynamic_weight(char *buffer, int size)
 {
 	int i = 0;
 
-	if (strncmp(buffer, RS_WEIGHT_STRING, RS_WEIGHT_MINLEN) == 0)
+	if (strncmp(buffer, RS_WEIGHT_STRING, RS_WEIGHT_STRING_MINLEN) == 0)
 	{
 		char *wlen = strstr(buffer, "=");
 		unsigned char digit;
 
-		size -= RS_WEIGHT_MINLEN;
+		size -= RS_WEIGHT_STRING_MINLEN;
 		for (; size; size--) {
 			digit = *(++wlen) - '0';
 			if (digit > 9)
@@ -102,8 +104,6 @@ int extract_dynamic_weight(char *buffer, int size)
 
 	return i;
 }
-
-
 
 /* simple function returning a pointer to the html buffer begin */
 char *extract_html(char *buffer, int size_buffer)
