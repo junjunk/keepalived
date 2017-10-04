@@ -87,8 +87,7 @@ int extract_dynamic_weight(char *buffer, int size)
 {
 	int i = 0;
 
-	if (strncmp(buffer, RS_WEIGHT_STRING, RS_WEIGHT_STRING_MINLEN) == 0)
-	{
+	if (strncmp(buffer, RS_WEIGHT_STRING, RS_WEIGHT_STRING_MINLEN) == 0) {
 		char *wlen = strstr(buffer, "=");
 		unsigned char digit;
 
@@ -97,11 +96,9 @@ int extract_dynamic_weight(char *buffer, int size)
 			digit = *(++wlen) - '0';
 			if (digit > 9)
 				break;
-
 			i = (10*i) + digit;
 		}
 	}
-
 	return i;
 }
 

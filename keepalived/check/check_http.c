@@ -203,7 +203,6 @@ install_http_check_keyword(void)
 	install_keyword("path", &path_handler);
 	install_keyword("digest", &digest_handler);
 	install_keyword("status_code", &status_code_handler);
-	install_keyword("dynamic_weight", &dynamic_weight_handler);
 	install_sublevel_end();
 	install_sublevel_end();
 }
@@ -437,8 +436,8 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 			/* weight decreasing */
 			if (checker->rs->weight > req->dynamic_weight) {
 				value = checker->rs->weight
-					- CHECK_HTTP_MIN(checker->rs->weight * fetched_url->weight_coefficient/100,
-					                 checker->rs->weight - req->dynamic_weight);
+					- CHECK_HTTP_MIN(checker->rs->weight * fetched_url->weight_coefficient/100
+					                 , checker->rs->weight - req->dynamic_weight);
 			/* weight increasing */
 			} else {
 				value = checker->rs->weight
@@ -446,9 +445,7 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 				if (value > req->dynamic_weight)
 					value = req->dynamic_weight;
 			}
-
 			update_svr_wgt(value, checker->vs, checker->rs, 1);
-			// update_svr_wgt(req->dynamic_weight, checker->vs, checker->rs, 1);
 		}
 	} else if (checker->rs->weight != checker->rs->iweight) {
 		update_svr_wgt(checker->rs->iweight, checker->vs, checker->rs, 1);
