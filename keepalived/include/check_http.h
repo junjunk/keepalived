@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <openssl/md5.h>
 #include <openssl/ssl.h>
+#include <limits.h>
 
 /* local includes */
 #include "check_data.h"
@@ -62,6 +63,7 @@ typedef struct _url {
 	char				*digest;
 	int				status_code;
 	int				weight_coefficient;	/* dynamic_weight value */
+	int				allow_zero_dynamic_weight;	/* by default zero value equal wrong answer */
 } url_t;
 
 typedef struct _http_checker {

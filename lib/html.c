@@ -20,6 +20,7 @@
  * Copyright (C) 2001-2012 Alexandre Cassen, <acassen@linux-vs.org>
  */
 
+#include <limits.h>
 #include <string.h>
 #include <stdlib.h>
 #include "html.h"
@@ -81,21 +82,29 @@ int extract_status_code(char *buffer, int size)
 
 /*
  * Return the http body weight value,
- * body starts with "rs_weight=" (see RS_WEIGHT_STRING)
+ * body starts with "rs_weight=" (see RS_WEIGHT_STRING).
+ * Accept only positive values (>= 0).
  */
 int extract_dynamic_weight(char *buffer, int size)
 {
-	int i = 0;
+	int i = -1;
 
 	if (strncmp(buffer, RS_WEIGHT_STRING, RS_WEIGHT_STRING_MINLEN) == 0) {
-		char *wlen = strstr(buffer, "=");
-		unsigned char digit;
+		// create ptr on the end of RS_WEIGHT_STRING string
+		char *wlen = buffer + RS_WEIGHT_STRING_MINLEN;
+		unsigned int digit;
 
 		size -= RS_WEIGHT_STRING_MINLEN;
-		for (; size; size--) {
-			digit = *(++wlen) - '0';
+		for (; size; wlen++, size--) {
+			digit = *wlen - '0';
 			if (digit > 9)
 				break;
+			// var "i" like as "error/unparsed" flag, when < 0
+			if (i < 0)
+				i = 0;
+			// check integer overflow
+			if (i > (INT_MAX - digit)/10)
+				return -1;
 			i = (10*i) + digit;
 		}
 	}

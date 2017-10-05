@@ -189,6 +189,15 @@ dynamic_weight_handler(vector_t *strvec)
 }
 
 void
+allow_zero_dynamic_weight_handler(vector_t *strvec)
+{
+	http_checker_t *http_get_chk = CHECKER_GET();
+	url_t *url = LIST_TAIL_DATA(http_get_chk->url);
+
+	url->allow_zero_dynamic_weight = 1;
+}
+
+void
 install_http_check_keyword(void)
 {
 	install_keyword("HTTP_GET", &http_get_handler);
@@ -198,6 +207,7 @@ install_http_check_keyword(void)
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
 	install_keyword("dynamic_weight", &dynamic_weight_handler);
+	install_keyword("allow_zero_dynamic_weight", &allow_zero_dynamic_weight_handler);
 	install_keyword("url", &url_handler);
 	install_sublevel();
 	install_keyword("path", &path_handler);
@@ -218,6 +228,7 @@ install_ssl_check_keyword(void)
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
 	install_keyword("dynamic_weight", &dynamic_weight_handler);
+	install_keyword("allow_zero_dynamic_weight", &allow_zero_dynamic_weight_handler);
 	install_keyword("url", &url_handler);
 	install_sublevel();
 	install_keyword("path", &path_handler);
@@ -430,20 +441,29 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 	 * req->dynamic_weight is parsed value
 	 */
 	if (fetched_url->weight_coefficient) {
-		if (checker->rs->weight != req->dynamic_weight) {
+		// processing only if weight changed and more than -1
+		if (checker->rs->weight != req->dynamic_weight
+		    && (req->dynamic_weight > 0 || (req->dynamic_weight == 0
+		                                    && fetched_url->allow_zero_dynamic_weight))) {
 			int value;
+			int change_step = (fetched_url->weight_coefficient/100.0) * checker->rs->weight;
 
-			/* weight decreasing */
-			if (checker->rs->weight > req->dynamic_weight) {
-				value = checker->rs->weight
-					- CHECK_HTTP_MIN(checker->rs->weight * fetched_url->weight_coefficient/100
-					                 , checker->rs->weight - req->dynamic_weight);
 			/* weight increasing */
+			if (req->dynamic_weight > checker->rs->weight) {
+				if (checker->rs->weight >= INT_MAX - change_step) {
+					value = CHECK_HTTP_MIN(INT_MAX, req->dynamic_weight);
+				} else {
+					value = checker->rs->weight + CHECK_HTTP_MAX(change_step, 1);
+					if (value > req->dynamic_weight)
+						value = req->dynamic_weight;
+				}
+			/* weight decreasing */
 			} else {
 				value = checker->rs->weight
-					+ CHECK_HTTP_MAX(checker->rs->weight * fetched_url->weight_coefficient/100, 1);
-				if (value > req->dynamic_weight)
-					value = req->dynamic_weight;
+					- CHECK_HTTP_MIN(change_step
+					                 , checker->rs->weight - req->dynamic_weight);
+				if (value == checker->rs->weight)
+					value--;
 			}
 			update_svr_wgt(value, checker->vs, checker->rs, 1);
 		}

@@ -533,6 +533,12 @@ A virtual_server can be a declaration of one of
                #   max(105 + 105*(value/100), 1) = max(157, 1) = 155 is
                #   next weight
                dynamic_weight <INT>
+
+               # Optional flag, that allow zero weigth,
+               # when directive dynamic_weight more than 0.
+               # Logic with 0 weight may cause shutdown service,
+               # so user may disable service only when flas is enable.
+               allow_zero_dynamic_weight
            } #HTTP_GET|SSL_GET
 
            #TCP healthchecker (bind to IP port)
