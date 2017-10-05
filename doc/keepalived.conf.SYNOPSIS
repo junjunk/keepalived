@@ -379,6 +379,7 @@ virtual_server group <STRING>      {	# VS group declaration
             warmup <INTEGER>        # random delay for maximum N seconds
             dynamic_weight <INTEGER>  # enable dynamic weight changes
                                       # with coefficient = <INTERGER>
+            allow_zero_dynamic_weight # zero weight is allowable
         }
     }
 
