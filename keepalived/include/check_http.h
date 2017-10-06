@@ -101,6 +101,7 @@ typedef struct _http_checker {
 
 /* Define prototypes */
 extern void install_http_check_keyword(void);
+extern int calc_next_weight_value(thread_t *);
 extern int epilog(thread_t *, int, int, int);
 extern int timeout_epilog(thread_t *, char *);
 extern url_t *fetch_next_url(http_checker_t *);

@@ -238,6 +238,52 @@ install_ssl_check_keyword(void)
 	install_sublevel_end();
 }
 
+/*
+ * calc_next_weight_value takes into accout:
+ * - weight_coefficient;
+ * - earlier weight value.
+ */
+int
+calc_next_weight_value(thread_t *thread)
+{
+	checker_t *checker = THREAD_ARG(thread);
+	http_checker_t *http_get_check = CHECKER_ARG(checker);
+	http_t *http = HTTP_ARG(http_get_check);
+	request_t *req = HTTP_REQ(http);
+	url_t *fetched_url = fetch_next_url(http_get_check);
+
+	int value;
+
+	/*
+	 * if you want to use weight near INT_MAX, you may cause overflow,
+	 * so long int will be using in calculate step and
+	 * after there value will be validated with INT_MAX
+	 */
+	long int change_step = (fetched_url->weight_coefficient / 100.0) * checker->rs->weight;
+	if (change_step > INT_MAX)
+		change_step = INT_MAX;
+
+	/* weight increasing */
+	if (req->dynamic_weight > checker->rs->weight) {
+		if (checker->rs->weight >= INT_MAX - change_step) {
+			value = CHECK_HTTP_MIN(INT_MAX, req->dynamic_weight);
+		} else {
+			value = checker->rs->weight + CHECK_HTTP_MAX(change_step, 1);
+			if (value > req->dynamic_weight)
+				value = req->dynamic_weight;
+		}
+	/* weight decreasing */
+	} else {
+		value = checker->rs->weight
+			- CHECK_HTTP_MIN(change_step
+							 , checker->rs->weight - req->dynamic_weight);
+		if (value == checker->rs->weight)
+			value--;
+	}
+
+	return value;
+}
+
 /* 
  * The global design of this checker is the following :
  * 
@@ -441,31 +487,16 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 	 * req->dynamic_weight is parsed value
 	 */
 	if (fetched_url->weight_coefficient) {
-		// processing only if weight changed and more than -1
-		if (checker->rs->weight != req->dynamic_weight
-		    && (req->dynamic_weight > 0 || (req->dynamic_weight == 0
-		                                    && fetched_url->allow_zero_dynamic_weight))) {
-			int value;
-			int change_step = (fetched_url->weight_coefficient/100.0) * checker->rs->weight;
-
-			/* weight increasing */
-			if (req->dynamic_weight > checker->rs->weight) {
-				if (checker->rs->weight >= INT_MAX - change_step) {
-					value = CHECK_HTTP_MIN(INT_MAX, req->dynamic_weight);
-				} else {
-					value = checker->rs->weight + CHECK_HTTP_MAX(change_step, 1);
-					if (value > req->dynamic_weight)
-						value = req->dynamic_weight;
-				}
-			/* weight decreasing */
+		if (checker->rs->weight != req->dynamic_weight) {
+			// processing only if weight changed and more than -1
+		    if (req->dynamic_weight > 0 || (req->dynamic_weight == 0
+		                                    && fetched_url->allow_zero_dynamic_weight)) {
+				int value = calc_next_weight_value(thread);
+				update_svr_wgt(value, checker->vs, checker->rs, 1);
 			} else {
-				value = checker->rs->weight
-					- CHECK_HTTP_MIN(change_step
-					                 , checker->rs->weight - req->dynamic_weight);
-				if (value == checker->rs->weight)
-					value--;
+				log_message(LOG_INFO, "Have received wrong body with weight value from %s"
+							, FMT_RS(checker->rs));
 			}
-			update_svr_wgt(value, checker->vs, checker->rs, 1);
 		}
 	} else if (checker->rs->weight != checker->rs->iweight) {
 		update_svr_wgt(checker->rs->iweight, checker->vs, checker->rs, 1);
