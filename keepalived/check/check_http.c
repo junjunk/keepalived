@@ -495,7 +495,7 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 				update_svr_wgt(value, checker->vs, checker->rs, 1);
 			} else {
 				log_message(LOG_INFO, "Have received wrong body with weight value from %s"
-							, FMT_RS(checker->rs));
+				            , FMT_RS(checker->rs));
 			}
 		}
 	} else if (checker->rs->weight != checker->rs->iweight) {
