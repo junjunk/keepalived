@@ -527,12 +527,14 @@ A virtual_server can be a declaration of one of
                # Optional dynamic weight changes.
                # Enable parse body answer, search for "rs_weight=<INT>".
                # Disable by default.
-               # <INT> value as argument describes coefficient, which
-               # display weight change in percent.
+               dynamic_weight_enable
+
+               # Optional flag, <INT> value as argument describes coefficient,
+               # which display weight change in percent.
                # E.g value = 50, current weight = 105, parsed weigth = 200,
-               #   max(105 + 105*(value/100), 1) = max(157, 1) = 155 is
+               #   max(105 + 105*(value/100), 1) = max(157, 1) = 157 is
                #   next weight
-               dynamic_weight <INT>
+               dynamic_weight_coefficient <INT>
 
                # Optional flag, that allow zero weigth,
                # when directive dynamic_weight more than 0.

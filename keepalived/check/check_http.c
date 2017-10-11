@@ -180,12 +180,21 @@ status_code_handler(vector_t *strvec)
 }
 
 void
-dynamic_weight_handler(vector_t *strvec)
+dynamic_weight_enable_handler(vector_t *strvec)
 {
 	http_checker_t *http_get_chk = CHECKER_GET();
 	url_t *url = LIST_TAIL_DATA(http_get_chk->url);
 
-	url->weight_coefficient = CHECKER_VALUE_INT(strvec);
+	url->dynamic_weight_enable = 1;
+}
+
+void
+dynamic_weight_coefficient_handler(vector_t *strvec)
+{
+	http_checker_t *http_get_chk = CHECKER_GET();
+	url_t *url = LIST_TAIL_DATA(http_get_chk->url);
+
+	url->dynamic_weight_coefficient = CHECKER_VALUE_INT(strvec);
 }
 
 void
@@ -206,7 +215,8 @@ install_http_check_keyword(void)
 	install_keyword("warmup", &warmup_handler);
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
-	install_keyword("dynamic_weight", &dynamic_weight_handler);
+	install_keyword("dynamic_weight_enable", &dynamic_weight_enable_handler);
+	install_keyword("dynamic_weight_coefficient", &dynamic_weight_coefficient_handler);
 	install_keyword("allow_zero_dynamic_weight", &allow_zero_dynamic_weight_handler);
 	install_keyword("url", &url_handler);
 	install_sublevel();
@@ -227,7 +237,8 @@ install_ssl_check_keyword(void)
 	install_keyword("warmup", &warmup_handler);
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
-	install_keyword("dynamic_weight", &dynamic_weight_handler);
+	install_keyword("dynamic_weight_enable", &dynamic_weight_enable_handler);
+	install_keyword("dynamic_weight_coefficient", &dynamic_weight_coefficient_handler);
 	install_keyword("allow_zero_dynamic_weight", &allow_zero_dynamic_weight_handler);
 	install_keyword("url", &url_handler);
 	install_sublevel();
@@ -252,31 +263,32 @@ calc_next_weight_value(thread_t *thread)
 	request_t *req = HTTP_REQ(http);
 	url_t *fetched_url = fetch_next_url(http_get_check);
 
-	int value;
+	long long int value;
+	long long int change_step;
+
+	if (!fetched_url->dynamic_weight_coefficient)
+		return req->dynamic_weight;
 
 	/*
 	 * if you want to use weight near INT_MAX, you may cause overflow,
 	 * so long int will be using in calculate step and
 	 * after there value will be validated with INT_MAX
 	 */
-	long int change_step = (fetched_url->weight_coefficient / 100.0) * checker->rs->weight;
+	change_step = (fetched_url->dynamic_weight_coefficient / 100.0)
+	              * checker->rs->weight;
 	if (change_step > INT_MAX)
 		change_step = INT_MAX;
 
 	/* weight increasing */
 	if (req->dynamic_weight > checker->rs->weight) {
-		if (checker->rs->weight >= INT_MAX - change_step) {
-			value = CHECK_HTTP_MIN(INT_MAX, req->dynamic_weight);
-		} else {
-			value = checker->rs->weight + CHECK_HTTP_MAX(change_step, 1);
-			if (value > req->dynamic_weight)
-				value = req->dynamic_weight;
-		}
+		value = checker->rs->weight + CHECK_HTTP_MAX(change_step, 1);
+		if (value > req->dynamic_weight || value > INT_MAX)
+			value = CHECK_HTTP_MIN(req->dynamic_weight, INT_MAX);
 	/* weight decreasing */
 	} else {
 		value = checker->rs->weight
-			- CHECK_HTTP_MIN(change_step
-							 , checker->rs->weight - req->dynamic_weight);
+		        - CHECK_HTTP_MIN(change_step
+		                         , checker->rs->weight - req->dynamic_weight);
 		if (value == checker->rs->weight)
 			value--;
 	}
@@ -486,7 +498,7 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 	 * checker->rs->weight is current weight value;
 	 * req->dynamic_weight is parsed value
 	 */
-	if (fetched_url->weight_coefficient) {
+	if (fetched_url->dynamic_weight_enable) {
 		if (checker->rs->weight != req->dynamic_weight) {
 			// processing only if weight changed and more than -1
 		    if (req->dynamic_weight > 0 || (req->dynamic_weight == 0
@@ -607,7 +619,7 @@ http_read_thread(thread_t * thread)
 
 		/* Handle response stream */
 		// http_process_response(req, r, (url->digest != NULL));
-		http_process_response(req, r, (url->digest != NULL), url->weight_coefficient);
+		http_process_response(req, r, (url->digest != NULL), url->dynamic_weight_enable);
 
 		/*
 		 * Register next http stream reader.

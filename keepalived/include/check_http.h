@@ -62,7 +62,8 @@ typedef struct _url {
 	char				*path;
 	char				*digest;
 	int				status_code;
-	int				weight_coefficient;	/* dynamic_weight value */
+	int				dynamic_weight_enable;		/* enable dynamic weight body parsing */
+	int				dynamic_weight_coefficient;	/* dynamic_weight value */
 	int				allow_zero_dynamic_weight;	/* by default zero value equal wrong answer */
 } url_t;
 
