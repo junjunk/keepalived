@@ -679,7 +679,7 @@ http_request_thread(thread_t * thread)
 	struct sockaddr_storage *addr = &checker->co->dst;
 	unsigned timeout = checker->co->connection_to;
 	char *vhost = CHECKER_VHOST(checker);
-	char *request_host = 0;
+	char request_host[HOSTNAME_MAX_LENGTH + 1];
 	char *request_host_port = 0;
 	char *str_request;
 	url_t *fetched_url;
@@ -698,11 +698,19 @@ http_request_thread(thread_t * thread)
 
 	if (vhost) {
 		/* If vhost was defined we don't need to override it's port */
-		request_host = vhost;
 		request_host_port = (char*) MALLOC(1);
+
+		sprintf(request_host, "%s", vhost);
 		*request_host_port = 0;
 	} else {
-		request_host = inet_sockaddrtos(addr, &buf);
+		if (addr->ss_family == AF_INET6) {
+			/* if literal ipv6 address, use ipv6 template, see RFC 2732 */
+			snprintf(request_host, INET6_ADDRSTRLEN + 2, "[%s]",
+			         inet_sockaddrtos(addr, &buf));
+		} else {
+			snprintf(request_host, INET_ADDRSTRLEN, "%s",
+			         inet_sockaddrtos(addr, &buf));
+		}
 
 		/* Allocate a buffer for the port string ( ":" [0-9][0-9][0-9][0-9][0-9] "\0" ) */
 		request_host_port = (char*) MALLOC(7);
@@ -710,14 +718,13 @@ http_request_thread(thread_t * thread)
 			 ntohs(inet_sockaddrport(addr)));
 	}
 
-	if(addr->ss_family == AF_INET6 && !vhost){
-		/* if literal ipv6 address, use ipv6 template, see RFC 2732 */
-		snprintf(str_request, GET_BUFFER_LENGTH, REQUEST_TEMPLATE_IPV6,
-			fetched_url->path, request_host, request_host_port);
-	} else {
+	if (fetched_url->dynamic_weight_enable)
+		snprintf(str_request, GET_BUFFER_LENGTH, REQUEST_TEMPLATE_RS_WEIGHT,
+		         fetched_url->path, checker->rs->weight, checker->rs->alive,
+		         request_host, request_host_port);
+	else
 		snprintf(str_request, GET_BUFFER_LENGTH, REQUEST_TEMPLATE,
-			fetched_url->path, request_host, request_host_port);
-	}
+		         fetched_url->path, request_host, request_host_port);
 
 	FREE(request_host_port);
 

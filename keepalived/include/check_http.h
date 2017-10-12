@@ -76,6 +76,14 @@ typedef struct _http_checker {
 } http_checker_t;
 
 /* global defs */
+
+#ifdef _POSIX_HOST_NAME_MAX
+#define HOSTNAME_MAX_LENGTH	_POSIX_HOST_NAME_MAX
+#else
+/* RFC 1035, see 3.1 */
+#define HOSTNAME_MAX_LENGTH	255
+#endif
+
 #define MD5_BUFFER_LENGTH 32
 #define GET_BUFFER_LENGTH 2048
 #define MAX_BUFFER_LENGTH 4096
@@ -87,9 +95,11 @@ typedef struct _http_checker {
                          "User-Agent: KeepAliveClient\r\n" \
                          "Host: %s%s\r\n\r\n"
 
-#define REQUEST_TEMPLATE_IPV6 "GET %s HTTP/1.0\r\n" \
-                         "User-Agent: KeepAliveClient\r\n" \
-                         "Host: [%s]%s\r\n\r\n"
+#define REQUEST_TEMPLATE_RS_WEIGHT "GET %s HTTP/1.0\r\n" \
+                                   "User-Agent: KeepAliveClient\r\n" \
+                                   "X-RS-Weight: %d\r\n" \
+                                   "X-RS-Alive: %d\r\n"  \
+                                   "Host: %s%s\r\n\r\n"
 
 /* macro utility */
 #define HTTP_ARG(X) ((X)->arg)
