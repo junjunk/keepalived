@@ -618,8 +618,8 @@ http_read_thread(thread_t * thread)
 	} else {
 
 		/* Handle response stream */
-		// http_process_response(req, r, (url->digest != NULL));
-		http_process_response(req, r, (url->digest != NULL), url->dynamic_weight_enable);
+		http_process_response(req, r, (url->digest != NULL),
+				url->dynamic_weight_enable);
 
 		/*
 		 * Register next http stream reader.
@@ -655,6 +655,7 @@ http_response_thread(thread_t * thread)
 	req->extracted = NULL;
 	req->len = 0;
 	req->error = 0;
+	req->dynamic_weight = -1;
 	if (url->digest)
 		MD5_Init(&req->context);
 
