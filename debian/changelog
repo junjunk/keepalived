@@ -1,3 +1,9 @@
+keepalived (1:1.2.19-mthread8) trusty; urgency=medium
+
+  * supporting 'RS-Weight' value in headers
+
+ -- Andrey Kiselev <ezhichek@yandex-team.ru>  Wed, 24 Jan 2018 18:06:46 +0300
+
 keepalived (1:1.2.19-mthread7) trusty; urgency=medium
 
   * dynamic_weight directive has added: body will be parsed

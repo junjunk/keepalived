@@ -63,6 +63,7 @@ typedef struct _url {
 	char				*digest;
 	int				status_code;
 	int				dynamic_weight_enable;		/* enable dynamic weight body parsing */
+	int				dynamic_weight_in_header;	/* if dyn weight data in "header" */
 	int				dynamic_weight_coefficient;	/* dynamic_weight value */
 	int				allow_zero_dynamic_weight;	/* by default zero value equal wrong answer */
 } url_t;
@@ -116,7 +117,7 @@ extern int calc_next_weight_value(thread_t *);
 extern int epilog(thread_t *, int, int, int);
 extern int timeout_epilog(thread_t *, char *);
 extern url_t *fetch_next_url(http_checker_t *);
-extern int http_process_response(request_t *, int, int, int);
+extern int http_process_response(request_t *, int, int, int, int);
 extern int http_handle_response(thread_t *, unsigned char digest[16]
 				, int);
 #endif

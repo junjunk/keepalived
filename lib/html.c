@@ -80,35 +80,66 @@ int extract_status_code(char *buffer, int size)
 	return inc;
 }
 
-/*
- * Return the http body weight value,
- * body starts with "rs_weight=" (see RS_WEIGHT_STRING).
+/* Return value of headers RS_WEIGHT_HEADER_STR or body RS_WEIGHT_BODY_STR
+ * body starts with "rs_weight=" (see RS_WEIGHT_STRING);
+ * headers start with RS-Weight (see RS_WEIGHT_HEADER_STR).
  * Accept only positive values (>= 0).
  */
-int extract_dynamic_weight(char *buffer, int size)
+int extract_dynamic_weight(char *buffer, char *body, int size, int rs_weight_in_header)
 {
-	int i = -1;
+    int i = -1;
+    char *cur, *end;
 
-	if (strncmp(buffer, RS_WEIGHT_STRING, RS_WEIGHT_STRING_MINLEN) == 0) {
-		// create ptr on the end of RS_WEIGHT_STRING string
-		char *wlen = buffer + RS_WEIGHT_STRING_MINLEN;
-		unsigned int digit;
+    if (rs_weight_in_header) {
+        int start_pos_header = 0;
 
-		size -= RS_WEIGHT_STRING_MINLEN;
-		for (; size; wlen++, size--) {
-			digit = *wlen - '0';
-			if (digit > 9)
-				break;
-			// var "i" like as "error/unparsed" flag, when < 0
-			if (i < 0)
-				i = 0;
-			// check integer overflow
-			if (i > (INT_MAX - digit)/10)
-				return -1;
-			i = (10*i) + digit;
-		}
-	}
-	return i;
+        cur = buffer;
+        for (; cur < body; cur++) {
+            char *str = RS_WEIGHT_HEADER_STR;
+
+            for (; *str; start_pos_header++, str++) {
+                if (*(cur+start_pos_header) == *str)
+                    continue;
+                start_pos_header = 0;
+                break;
+            }
+            if (start_pos_header >= RS_WEIGHT_MINLEN)
+                break;
+            }
+            // validate offset
+            if (start_pos_header < RS_WEIGHT_MINLEN)
+                return i;
+            cur += start_pos_header;
+            end = body;
+
+        // "else" mean parse body for searching RS_WEIGHT_BODY_STR
+        } else {
+            if (strncmp(body, RS_WEIGHT_BODY_STR, RS_WEIGHT_MINLEN) == 0) {
+                cur = body + RS_WEIGHT_MINLEN;
+                end = buffer + size;
+            } else {
+                return i;
+            }
+        }
+
+    for (; cur < end; cur++) {
+        unsigned int digit;
+
+        if (*cur == ' ')
+                continue;
+        digit = *cur - '0';
+        if (digit > 9)
+                break;
+        // var "i" like as "error/unparsed" flag, when < 0
+        if (i < 0)
+            i = 0;
+		// check integer overflow
+        if (i > (INT_MAX - digit)/10)
+            return -1;
+        i = (10*i) + digit;
+    }
+
+    return i;
 }
 
 /* simple function returning a pointer to the html buffer begin */

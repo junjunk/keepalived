@@ -189,6 +189,15 @@ dynamic_weight_enable_handler(vector_t *strvec)
 }
 
 void
+dynamic_weight_in_header_handler(vector_t *strvec)
+{
+	http_checker_t *http_get_chk = CHECKER_GET();
+	url_t *url = LIST_TAIL_DATA(http_get_chk->url);
+
+	url->dynamic_weight_in_header = 1;
+}
+
+void
 dynamic_weight_coefficient_handler(vector_t *strvec)
 {
 	http_checker_t *http_get_chk = CHECKER_GET();
@@ -216,6 +225,7 @@ install_http_check_keyword(void)
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
 	install_keyword("dynamic_weight_enable", &dynamic_weight_enable_handler);
+	install_keyword("dynamic_weight_in_header", &dynamic_weight_in_header_handler);
 	install_keyword("dynamic_weight_coefficient", &dynamic_weight_coefficient_handler);
 	install_keyword("allow_zero_dynamic_weight", &allow_zero_dynamic_weight_handler);
 	install_keyword("url", &url_handler);
@@ -238,6 +248,7 @@ install_ssl_check_keyword(void)
 	install_keyword("nb_get_retry", &nb_get_retry_handler);
 	install_keyword("delay_before_retry", &delay_before_retry_handler);
 	install_keyword("dynamic_weight_enable", &dynamic_weight_enable_handler);
+	install_keyword("dynamic_weight_in_header", &dynamic_weight_in_header_handler);
 	install_keyword("dynamic_weight_coefficient", &dynamic_weight_coefficient_handler);
 	install_keyword("allow_zero_dynamic_weight", &allow_zero_dynamic_weight_handler);
 	install_keyword("url", &url_handler);
@@ -538,7 +549,8 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 
 /* Handle response stream performing MD5 updates */
 int
-http_process_response(request_t *req, int r, int do_md5, int get_rs_weight)
+http_process_response(request_t *req, int r, int do_md5
+	, int get_rs_weight, int weight_in_header)
 {
 	req->len += r;
 	if (!req->extracted) {
@@ -548,8 +560,9 @@ http_process_response(request_t *req, int r, int do_md5, int get_rs_weight)
 			r = req->len - (req->extracted - req->buffer);
 			if (r && do_md5)
 				MD5_Update(&req->context, req->extracted, r);
-			if (r && get_rs_weight)
-				req->dynamic_weight = extract_dynamic_weight(req->extracted, req->len);
+			if (get_rs_weight)
+				req->dynamic_weight = extract_dynamic_weight(req->buffer
+					, req->extracted, req->len, weight_in_header);
 			req->len = 0;
 		}
 	} else if (req->len) {
@@ -618,8 +631,8 @@ http_read_thread(thread_t * thread)
 	} else {
 
 		/* Handle response stream */
-		http_process_response(req, r, (url->digest != NULL),
-				url->dynamic_weight_enable);
+		http_process_response(req, r, (url->digest != NULL)
+			, url->dynamic_weight_enable, url->dynamic_weight_in_header);
 
 		/*
 		 * Register next http stream reader.

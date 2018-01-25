@@ -26,14 +26,16 @@
 /* HTTP header tag */
 #define CONTENT_LENGTH	"Content-Length:"
 
-#define RS_WEIGHT_STRING    "rs_weight="
-#define RS_WEIGHT_STRING_MINLEN 10
-/* RS_WEIGHT_STRING_MINLEN = strlen(RS_WEIGHT_STRING) */
+#define RS_WEIGHT_BODY_STR      "rs_weight="
+#define RS_WEIGHT_HEADER_STR    "RS-Weight:"
+#define RS_WEIGHT_MINLEN        10
+/* RS_WEIGHT_MINLEN = strlen(RS_WEIGHT_BODY_STR) or strlen(RS_WEIGHT_HEADER_STR) */
 
 /* Prototypes */
 extern int extract_content_length(char *buffer, int size);
 extern int extract_status_code(char *buffer, int size);
-extern int extract_dynamic_weight(char *buffer, int size);
+extern int extract_dynamic_weight(char *buffer, char *body, int size
+    , int rs_weight_in_header);
 extern char *extract_html(char *buffer, int size_buffer);
 
 #endif
