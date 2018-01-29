@@ -105,22 +105,24 @@ int extract_dynamic_weight(char *buffer, char *body, int size, int rs_weight_in_
             }
             if (start_pos_header >= RS_WEIGHT_MINLEN)
                 break;
-            }
-            // validate offset
-            if (start_pos_header < RS_WEIGHT_MINLEN)
-                return i;
-            cur += start_pos_header;
-            end = body;
-
-        // "else" mean parse body for searching RS_WEIGHT_BODY_STR
-        } else {
-            if (strncmp(body, RS_WEIGHT_BODY_STR, RS_WEIGHT_MINLEN) == 0) {
-                cur = body + RS_WEIGHT_MINLEN;
-                end = buffer + size;
-            } else {
-                return i;
-            }
+            // move to next header
+            while (*(cur++) != '\r' && *cur != '\n');
         }
+        // validate offset
+        if (start_pos_header < RS_WEIGHT_MINLEN)
+            return i;
+        cur += start_pos_header;
+        end = body;
+
+    // "else" mean parse body for searching RS_WEIGHT_BODY_STR
+    } else {
+        if (strncmp(body, RS_WEIGHT_BODY_STR, RS_WEIGHT_MINLEN) == 0) {
+            cur = body + RS_WEIGHT_MINLEN;
+            end = buffer + size;
+        } else {
+            return i;
+        }
+    }
 
     for (; cur < end; cur++) {
         unsigned int digit;
