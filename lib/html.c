@@ -88,42 +88,28 @@ int extract_status_code(char *buffer, int size)
 int extract_dynamic_weight(char *buffer, char *body, int size, int rs_weight_in_header)
 {
     int i = -1;
-    char *cur, *end;
+    char *cur = NULL, *end = NULL;
 
     if (rs_weight_in_header) {
-        int start_pos_header = 0;
-
         cur = buffer;
         for (; cur < body; cur++) {
-            char *str = RS_WEIGHT_HEADER_STR;
-
-            for (; *str; start_pos_header++, str++) {
-                if (*(cur+start_pos_header) == *str)
-                    continue;
-                start_pos_header = 0;
+            if (strncmp(cur, RS_WEIGHT_HEADER_STR, RS_WEIGHT_MINLEN) == 0) {
+                cur += RS_WEIGHT_MINLEN;
+                end = body;
                 break;
             }
-            if (start_pos_header >= RS_WEIGHT_MINLEN)
-                break;
             // move to next header
             while (*(cur++) != '\r' && *cur != '\n');
         }
-        // validate offset
-        if (start_pos_header < RS_WEIGHT_MINLEN)
-            return i;
-        cur += start_pos_header;
-        end = body;
 
     // "else" mean parse body for searching RS_WEIGHT_BODY_STR
-    } else {
-        if (strncmp(body, RS_WEIGHT_BODY_STR, RS_WEIGHT_MINLEN) == 0) {
+    } else if (strncmp(body, RS_WEIGHT_BODY_STR, RS_WEIGHT_MINLEN) == 0) {
             cur = body + RS_WEIGHT_MINLEN;
             end = buffer + size;
-        } else {
-            return i;
-        }
     }
 
+    if (!cur || !end)
+        return i;
     for (; cur < end; cur++) {
         unsigned int digit;
 
