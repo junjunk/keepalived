@@ -124,6 +124,8 @@ lbkind_handler(vector_t *strvec)
 		vs->loadbalancing_kind = IP_VS_CONN_F_DROUTE;
 	else if (!strcmp(str, "TUN"))
 		vs->loadbalancing_kind = IP_VS_CONN_F_TUNNEL;
+	else if (!strcmp(str, "GRE"))
+		vs->loadbalancing_kind = IP_VS_CONN_F_GRE_TUNNEL;
 	else
 		log_message(LOG_INFO, "PARSER : unknown [%s] routing method.", str);
 }

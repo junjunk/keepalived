@@ -87,6 +87,7 @@
 #define IP_VS_CONN_F_TUNNEL	0x0002		/* tunneling */
 #define IP_VS_CONN_F_DROUTE	0x0003		/* direct routing */
 #define IP_VS_CONN_F_BYPASS	0x0004		/* cache bypass */
+#define IP_VS_CONN_F_GRE_TUNNEL	0x0005		/* GRE tunneling */
 #define IP_VS_CONN_F_SYNC	0x0020		/* entry created by sync */
 #define IP_VS_CONN_F_HASHED	0x0040		/* hashed entry */
 #define IP_VS_CONN_F_NOOUTPUT	0x0080		/* no output packets */

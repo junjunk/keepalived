@@ -215,6 +215,9 @@ dump_vs(void *data)
 	case IP_VS_CONN_F_TUNNEL:
 		log_message(LOG_INFO, "   lb_kind = TUN");
 		break;
+	case IP_VS_CONN_F_GRE_TUNNEL:
+		log_message(LOG_INFO, "   lb_kind = GRE");
+		break;
 #endif
 	}
 

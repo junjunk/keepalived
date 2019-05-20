@@ -1,3 +1,9 @@
+keepalived (1:1.2.20-gre) bionic; urgency=medium
+
+  * add support for GRE tunneling
+
+ -- Vadim Fedorenko <junk@yandex-team.ru>  Mon, 20 May 2019 14:59:19 +0300
+
 keepalived (1:1.2.19-mthread8) trusty; urgency=medium
 
   * supporting 'RS-Weight' value in headers

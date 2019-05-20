@@ -289,6 +289,9 @@ check_snmp_virtualserver(struct variable *vp, oid *name, size_t *length,
 		case IP_VS_CONN_F_TUNNEL:
 			long_ret = 3;
 			break;
+		case IP_VS_CONN_F_GRE_TUNNEL:
+			long_ret = 3;
+			break;
 #endif
 		}
 		if (!long_ret) break;
