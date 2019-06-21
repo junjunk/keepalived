@@ -213,7 +213,17 @@ dump_vs(void *data)
 		log_message(LOG_INFO, "   lb_kind = DR");
 		break;
 	case IP_VS_CONN_F_TUNNEL:
-		log_message(LOG_INFO, "   lb_kind = TUN");
+		switch (vs->loadbalancing_tun_type) {
+		case IP_VS_CONN_F_TUNNEL_TYPE_IPIP:
+			log_message(LOG_INFO, "   lb_kind = TUN IPIP");
+			break;
+		case IP_VS_CONN_F_TUNNEL_TYPE_GUE:
+			log_message(LOG_INFO, "   lb_kind = TUN GUE");
+			break;
+		case IP_VS_CONN_F_TUNNEL_TYPE_GRE:
+			log_message(LOG_INFO, "   lb_kind = TUN GRE");
+			break;
+		}
 		break;
 #endif
 	}
@@ -322,6 +332,8 @@ alloc_rs(char *ip, char *port)
 	new->weight = 1;
 	new->iweight = 1;
 	new->failed_checkers = alloc_list(free_failed_checkers, NULL);
+	new->loadbalancing_kind = vs->loadbalancing_kind;
+	new->loadbalancing_tun_type = vs->loadbalancing_tun_type;
 
 	if (LIST_ISEMPTY(vs->rs))
 		vs->rs = alloc_list(free_rs, dump_rs);

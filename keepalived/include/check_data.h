@@ -74,6 +74,9 @@ typedef struct _real_server {
 	int				iweight;	/* Initial weight */
 	int 				pweight;	/* previous weight
 							 * used for reloading */
+	unsigned			loadbalancing_kind;
+	unsigned			loadbalancing_tun_type;
+
 #ifdef _KRNL_2_6_
 	uint32_t			u_threshold;   /* Upper connection limit. */
 	uint32_t			l_threshold;   /* Lower connection limit. */
@@ -127,6 +130,7 @@ typedef struct _virtual_server {
 	char				sched[SCHED_MAX_LENGTH];
 	char				timeout_persistence[MAX_TIMEOUT_LENGTH];
 	unsigned			loadbalancing_kind;
+	unsigned			loadbalancing_tun_type;
 	uint32_t			granularity_persistence;
 	char				*virtualhost;
 	list				rs;

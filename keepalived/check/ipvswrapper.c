@@ -610,6 +610,9 @@ ipvs_set_rule(int cmd, virtual_server_t * vs,
 	drule->u_threshold = 0;
 	drule->l_threshold = 0;
 	drule->conn_flags = vs->loadbalancing_kind;
+	if (vs->loadbalancing_kind == IP_VS_CONN_F_TUNNEL) {
+		drule->tun_type = vs->loadbalancing_tun_type;
+	}
 	strncpy(srule->sched_name, vs->sched, IP_VS_SCHEDNAME_MAXLEN);
 	srule->netmask = (vs->addr.ss_family == AF_INET6) ? 128 : ((u_int32_t) 0xffffffff);
 	srule->protocol = vs->service_type;
@@ -642,6 +645,13 @@ ipvs_set_rule(int cmd, virtual_server_t * vs,
 			drule->weight = rs->weight;	
 			drule->u_threshold = rs->u_threshold;
 			drule->l_threshold = rs->l_threshold;
+			drule->conn_flags = rs->loadbalancing_kind;
+			if (rs->loadbalancing_kind == IP_VS_CONN_F_TUNNEL) {
+				drule->tun_type = rs->loadbalancing_tun_type;
+				if (rs->loadbalancing_tun_type == IP_VS_CONN_F_TUNNEL_TYPE_GUE) {
+					drule->tun_port = drule->port;
+				}
+			}
 		}
 	}
 }
