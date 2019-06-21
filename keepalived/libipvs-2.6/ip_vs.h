@@ -36,6 +36,9 @@
 #define IP_VS_SVC_F_SCHED_SH_FALLBACK	IP_VS_SVC_F_SCHED1 /* SH fallback */
 #define IP_VS_SVC_F_SCHED_SH_PORT	IP_VS_SVC_F_SCHED2 /* SH use port */
 
+#define IP_VS_SVC_F_SCHED_MH_FALLBACK	IP_VS_SVC_F_SCHED1 /* MH fallback */
+#define IP_VS_SVC_F_SCHED_MH_PORT	IP_VS_SVC_F_SCHED2 /* MH use port */
+
 
 /*
  *      IPVS sync daemon states
@@ -104,6 +107,19 @@
 
 #define IP_VS_PEDATA_MAXLEN	255
 
+/* Tunnel types */
+enum {
+       IP_VS_CONN_F_TUNNEL_TYPE_IPIP = 0,      /* IPIP */
+       IP_VS_CONN_F_TUNNEL_TYPE_GUE,           /* GUE */
+       IP_VS_CONN_F_TUNNEL_TYPE_GRE,           /* GRE */
+       IP_VS_CONN_F_TUNNEL_TYPE_MAX,
+};
+
+/* Tunnel encapsulation flags */
+#define IP_VS_TUNNEL_ENCAP_FLAG_NOCSUM         (0)
+#define IP_VS_TUNNEL_ENCAP_FLAG_CSUM           (1 << 0)
+#define IP_VS_TUNNEL_ENCAP_FLAG_REMCSUM                (1 << 1)
+
 union nf_inet_addr {
         __u32           all[4];
         __be32          ip;
@@ -144,7 +160,7 @@ struct ip_vs_service_user {
 	__be32			netmask;	/* persistent netmask */
 	u_int16_t		af;
 	union nf_inet_addr	addr;
-	char			pe_name[IP_VS_PENAME_MAXLEN];
+	char			pe_name[IP_VS_PENAME_MAXLEN + 1];
 };
 
 struct ip_vs_dest_kern {
@@ -175,6 +191,11 @@ struct ip_vs_dest_user {
 	u_int32_t		l_threshold;	/* lower threshold */
 	u_int16_t		af;
 	union nf_inet_addr	addr;
+
+       /* tunnel info */
+       u_int16_t               tun_type;       /* tunnel type */
+       __be16                  tun_port;       /* tunnel port */
+       u_int16_t               tun_flags;      /* tunnel flags */
 };
 
 /*
@@ -195,6 +216,22 @@ struct ip_vs_stats_user
 	__u32			outbps;		/* current out byte rate */
 };
 
+/*
+ *	IPVS statistics object (for user space), 64-bit
+ */
+struct ip_vs_stats64 {
+	__u64			conns;		/* connections scheduled */
+	__u64			inpkts;		/* incoming packets */
+	__u64			outpkts;	/* outgoing packets */
+	__u64			inbytes;	/* incoming bytes */
+	__u64			outbytes;	/* outgoing bytes */
+
+	__u64			cps;		/* current connection rate */
+	__u64			inpps;		/* current in packet rate */
+	__u64			outpps;		/* current out packet rate */
+	__u64			inbps;		/* current in byte rate */
+	__u64			outbps;		/* current out byte rate */
+};
 
 /* The argument to IP_VS_SO_GET_INFO */
 struct ip_vs_getinfo {
@@ -251,8 +288,10 @@ struct ip_vs_service_entry {
 
 	u_int16_t		af;
 	union nf_inet_addr	addr;
-	char			pe_name[IP_VS_PENAME_MAXLEN];
+	char			pe_name[IP_VS_PENAME_MAXLEN + 1];
 
+	/* statistics, 64-bit */
+	struct ip_vs_stats64	stats64;
 };
 
 struct ip_vs_dest_entry_kern {
@@ -289,6 +328,14 @@ struct ip_vs_dest_entry {
 	struct ip_vs_stats_user stats;
 	u_int16_t		af;
 	union nf_inet_addr	addr;
+
+	/* statistics, 64-bit */
+	struct ip_vs_stats64	stats64;
+
+       /* tunnel info */
+       u_int16_t               tun_type;       /* tunnel type */
+       __be16                  tun_port;       /* tunnel port */
+       u_int16_t               tun_flags;      /* tunnel flags */
 };
 
 /* The argument to IP_VS_SO_GET_DESTS */
@@ -348,6 +395,17 @@ struct ip_vs_timeout_user {
 
 
 /* The argument to IP_VS_SO_GET_DAEMON */
+struct ip_vs_daemon_kern {
+	/* sync daemon state (master/backup) */
+	int			state;
+
+	/* multicast interface name */
+	char			mcast_ifn[IP_VS_IFNAME_MAXLEN];
+
+	/* SyncID we belong to */
+	int			syncid;
+};
+
 struct ip_vs_daemon_user {
 	/* sync daemon state (master/backup) */
 	int			state;
@@ -357,6 +415,21 @@ struct ip_vs_daemon_user {
 
 	/* SyncID we belong to */
 	int			syncid;
+
+	/* UDP Payload Size */
+	int			sync_maxlen;
+
+	/* Multicast Port (base) */
+	u_int16_t		mcast_port;
+
+	/* Multicast TTL */
+	u_int16_t		mcast_ttl;
+
+	/* Multicast Address Family */
+	u_int16_t		mcast_af;
+
+	/* Multicast Address */
+	union nf_inet_addr	mcast_group;
 };
 
 
@@ -444,6 +517,8 @@ enum {
 
 	IPVS_SVC_ATTR_PE_NAME,		/* name of scheduler */
 
+	IPVS_SVC_ATTR_STATS64,		/* nested attribute for service stats */
+
 	__IPVS_SVC_ATTR_MAX,
 };
 
@@ -473,6 +548,14 @@ enum {
 
 	IPVS_DEST_ATTR_ADDR_FAMILY,	/* Address family of address */
 
+	IPVS_DEST_ATTR_STATS64,		/* nested attribute for dest stats */
+
+       IPVS_DEST_ATTR_TUN_TYPE,        /* tunnel type */
+
+       IPVS_DEST_ATTR_TUN_PORT,        /* tunnel port */
+
+       IPVS_DEST_ATTR_TUN_FLAGS,       /* tunnel flags */
+
 	__IPVS_DEST_ATTR_MAX,
 };
 
@@ -488,6 +571,11 @@ enum {
 	IPVS_DAEMON_ATTR_STATE,		/* sync daemon state (master/backup) */
 	IPVS_DAEMON_ATTR_MCAST_IFN,	/* multicast interface name */
 	IPVS_DAEMON_ATTR_SYNC_ID,	/* SyncID we belong to */
+	IPVS_DAEMON_ATTR_SYNC_MAXLEN,	/* UDP Payload Size */
+	IPVS_DAEMON_ATTR_MCAST_GROUP,	/* IPv4 Multicast Address */
+	IPVS_DAEMON_ATTR_MCAST_GROUP6,	/* IPv6 Multicast Address */
+	IPVS_DAEMON_ATTR_MCAST_PORT,	/* Multicast Port (base) */
+	IPVS_DAEMON_ATTR_MCAST_TTL,	/* Multicast TTL */
 	__IPVS_DAEMON_ATTR_MAX,
 };
 
@@ -496,7 +584,8 @@ enum {
 /*
  * Attributes used to describe service or destination entry statistics
  *
- * Used inside nested attributes IPVS_SVC_ATTR_STATS and IPVS_DEST_ATTR_STATS
+ * Used inside nested attributes IPVS_SVC_ATTR_STATS, IPVS_DEST_ATTR_STATS,
+ * IPVS_SVC_ATTR_STATS64 and IPVS_DEST_ATTR_STATS64.
  */
 enum {
 	IPVS_STATS_ATTR_UNSPEC = 0,
