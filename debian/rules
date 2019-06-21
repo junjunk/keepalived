@@ -5,7 +5,7 @@
 	dh $@ # --with=autotools-dev
 
 override_dh_auto_configure:
-	LIBS="-ldl -lpthread -lnl" dh_auto_configure -- --disable-vrrp --enable-snmp
+	LIBS="-ldl -lpthread -lnl-3" dh_auto_configure -- --disable-vrrp --enable-snmp
 
 override_dh_strip:
 	true
