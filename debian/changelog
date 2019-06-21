@@ -1,3 +1,10 @@
+keepalived (1:1.2.20-gre-gue) bionic; urgency=medium
+
+  * add support for GRE and GUE encapsulation
+  * add support for per RS send method
+
+ -- Vadim Fedorenko <junk@yandex-team.ru>  Fri, 21 Jun 2019 14:29:32 +0300
+
 keepalived (1:1.2.19-mthread8) trusty; urgency=medium
 
   * supporting 'RS-Weight' value in headers
