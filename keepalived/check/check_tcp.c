@@ -101,6 +101,8 @@ install_tcp_check_keyword(void)
 void
 tcp_eplilog(thread_t * thread, int is_success)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker;
 	tcp_check_t *tcp_check;
 	long delay;
@@ -117,8 +119,8 @@ tcp_eplilog(thread_t * thread, int is_success)
 		tcp_check->retry_it = 0;
 
 		if (is_success && !svr_checker_up(checker->id, checker->rs)) {
-			log_message(LOG_INFO, "TCP connection to %s success."
-					, FMT_TCP_RS(checker));
+			log_message(LOG_INFO, "TCP connection to %s in %s success."
+					, FMT_TCP_RS(checker), FMT_VS(checker->vs));
 			smtp_alert(checker->rs, NULL, NULL,
 				   "UP",
 				   "=> TCP CHECK succeed on service <=");
@@ -129,8 +131,9 @@ tcp_eplilog(thread_t * thread, int is_success)
 			   && svr_checker_up(checker->id, checker->rs)) {
 			if (tcp_check->n_retry)
 				log_message(LOG_INFO
-				    , "Check on service %s failed after %d retry."
+				    , "Check on service %s in %s failed after %d retry."
 				    , FMT_TCP_RS(checker)
+				    , FMT_VS(checker->vs)
 				    , tcp_check->n_retry);
 			smtp_alert(checker->rs, NULL, NULL,
 				   "DOWN",
@@ -152,6 +155,8 @@ tcp_eplilog(thread_t * thread, int is_success)
 int
 tcp_check_thread(thread_t * thread)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker;
 	int status;
 	util_buf_t buf;
@@ -171,14 +176,16 @@ tcp_check_thread(thread_t * thread)
 		break;
 	case connect_timeout:
 		if (svr_checker_up(checker->id, checker->rs))
-			log_message(LOG_INFO, "TCP connection to %s timeout."
-					, FMT_TCP_RS(checker));
+			log_message(LOG_INFO, "TCP connection to %s in %s timeout."
+					, FMT_TCP_RS(checker)
+					, FMT_VS(checker->vs));
 		tcp_eplilog(thread, 0);
 		break;
 	default:
 		if (svr_checker_up(checker->id, checker->rs))
-			log_message(LOG_INFO, "TCP connection to %s failed."
-					, FMT_TCP_RS(checker));
+			log_message(LOG_INFO, "TCP connection to %s in %s failed."
+					, FMT_TCP_RS(checker)
+					, FMT_VS(checker->vs));
 		tcp_eplilog(thread, 0);
 	}
 
