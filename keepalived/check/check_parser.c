@@ -122,9 +122,16 @@ lbkind_handler(vector_t *strvec)
 		vs->loadbalancing_kind = IP_VS_CONN_F_MASQ;
 	else if (!strcmp(str, "DR"))
 		vs->loadbalancing_kind = IP_VS_CONN_F_DROUTE;
-	else if (!strcmp(str, "TUN"))
+	else if (!strcmp(str, "TUN")) {
 		vs->loadbalancing_kind = IP_VS_CONN_F_TUNNEL;
-	else
+		vs->loadbalancing_tun_type = IP_VS_CONN_F_TUNNEL_TYPE_IPIP;
+	} else if (!strcmp(str, "GUE")) {
+		vs->loadbalancing_kind = IP_VS_CONN_F_TUNNEL;
+		vs->loadbalancing_tun_type = IP_VS_CONN_F_TUNNEL_TYPE_GUE;
+	} else if (!strcmp(str, "GRE")) {
+		vs->loadbalancing_kind = IP_VS_CONN_F_TUNNEL;
+		vs->loadbalancing_tun_type = IP_VS_CONN_F_TUNNEL_TYPE_GRE;
+	} else
 		log_message(LOG_INFO, "PARSER : unknown [%s] routing method.", str);
 }
 static void
@@ -221,6 +228,30 @@ lthreshold_handler(vector_t *strvec)
 	real_server_t *rs = LIST_TAIL_DATA(vs->rs);
 	rs->l_threshold = atoi(vector_slot(strvec, 1));
 }
+static void
+rs_lbkind_handler(vector_t *strvec)
+{
+	virtual_server_t *vs = LIST_TAIL_DATA(check_data->vs);
+	real_server_t *rs = LIST_TAIL_DATA(vs->rs);
+	char *str = vector_slot(strvec, 1);
+
+	if (!strcmp(str, "NAT"))
+		rs->loadbalancing_kind = IP_VS_CONN_F_MASQ;
+	else if (!strcmp(str, "DR"))
+		rs->loadbalancing_kind = IP_VS_CONN_F_DROUTE;
+	else if (!strcmp(str, "TUN")) {
+		rs->loadbalancing_kind = IP_VS_CONN_F_TUNNEL;
+		rs->loadbalancing_tun_type = IP_VS_CONN_F_TUNNEL_TYPE_IPIP;
+	} else if (!strcmp(str, "GUE")) {
+		rs->loadbalancing_kind = IP_VS_CONN_F_TUNNEL;
+		rs->loadbalancing_tun_type = IP_VS_CONN_F_TUNNEL_TYPE_GUE;
+	} else if (!strcmp(str, "GRE")) {
+		rs->loadbalancing_kind = IP_VS_CONN_F_TUNNEL;
+		rs->loadbalancing_tun_type = IP_VS_CONN_F_TUNNEL_TYPE_GRE;
+	} else
+		log_message(LOG_INFO, "PARSER : unknown [%s] routing method.", str);
+}
+
 #endif
 static void
 inhibit_handler(vector_t *strvec)
@@ -341,6 +372,7 @@ check_init_keywords(void)
 #ifdef _KRNL_2_6_
 	install_keyword("uthreshold", &uthreshold_handler);
 	install_keyword("lthreshold", &lthreshold_handler);
+	install_keyword("lb_kind", &rs_lbkind_handler);
 #endif
 	install_keyword("inhibit_on_failure", &inhibit_handler);
 	install_keyword("notify_up", &notify_up_handler);
