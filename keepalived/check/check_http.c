@@ -344,6 +344,8 @@ calc_next_weight_value(thread_t *thread)
 int
 epilog(thread_t * thread, int method, int t, int c)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker = THREAD_ARG(thread);
 	http_checker_t *http_get_check = CHECKER_ARG(checker);
 	http_t *http = HTTP_ARG(http_get_check);
@@ -362,8 +364,8 @@ epilog(thread_t * thread, int method, int t, int c)
 		 * check if server is currently alive.
 		 */
 		if (!svr_checker_up(checker->id, checker->rs)) {
-			log_message(LOG_INFO, "Remote Web server %s succeed on service."
-					    , FMT_HTTP_RS(checker));
+			log_message(LOG_INFO, "Remote Web server %s in %s succeed on service."
+					    , FMT_HTTP_RS(checker), FMT_VS(checker->vs));
 			smtp_alert(checker->rs, NULL, NULL, "UP",
 				   "=> CHECK succeed on service <=");
 			update_svr_checker_state(UP, checker->id
@@ -385,8 +387,9 @@ epilog(thread_t * thread, int method, int t, int c)
 		if (svr_checker_up(checker->id, checker->rs)) {
 			if (http_get_check->nb_get_retry)
 				log_message(LOG_INFO
-				   , "Check on service %s failed after %d retry."
+				   , "Check on service %s in %s failed after %d retry."
 				   , FMT_HTTP_RS(checker)
+				   , FMT_VS(checker->vs)
 				   , http->retry_it - 1);
 			smtp_alert(checker->rs, NULL, NULL,
 				   "DOWN",
@@ -430,14 +433,17 @@ epilog(thread_t * thread, int method, int t, int c)
 int
 timeout_epilog(thread_t * thread, char *debug_msg)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker = THREAD_ARG(thread);
 	util_buf_t buf;
 
 	/* check if server is currently alive */
 	if (svr_checker_up(checker->id, checker->rs)) {
-		log_message(LOG_INFO, "%s server %s."
+		log_message(LOG_INFO, "%s server %s in %s."
 				    , debug_msg
-				    , FMT_HTTP_RS(checker));
+				    , FMT_HTTP_RS(checker)
+				    , FMT_VS(checker->vs));
 		return epilog(thread, 2, 0, 1);
 	}
 
@@ -459,6 +465,8 @@ int
 http_handle_response(thread_t * thread, unsigned char digest[16]
 		     , int empty_buffer)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker = THREAD_ARG(thread);
 	http_checker_t *http_get_check = CHECKER_ARG(checker);
 	http_t *http = HTTP_ARG(http_get_check);
@@ -517,8 +525,9 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 				int value = calc_next_weight_value(thread);
 				update_svr_wgt(value, checker->vs, checker->rs, 1);
 			} else {
-				log_message(LOG_INFO, "Have received wrong body with weight value from %s"
-				            , FMT_RS(checker->rs));
+				log_message(LOG_INFO, "Body weight value is incorrect from %s in %s"
+				            , FMT_HTTP_RS(checker)
+				            , FMT_VS(checker->vs));
 			}
 		}
 	} else if (checker->rs->weight != checker->rs->iweight) {
@@ -531,14 +540,16 @@ http_handle_response(thread_t * thread, unsigned char digest[16]
 				break;
 			case on_status:
 				log_message(LOG_INFO,
-				       "HTTP status code success to %s url(%d)."
+				       "HTTP status code success to %s in %s url(%d)."
 				       , FMT_HTTP_RS(checker)
+				       , FMT_VS(checker->vs)
 				       , http->url_it + 1);
 				return epilog(thread, 1, 1, 0) + 1;
 			case on_digest:
 				log_message(LOG_INFO,
-					"MD5 digest success to %s url(%d)."
+					"MD5 digest success to %s in %s url(%d)."
 					, FMT_HTTP_RS(checker)
+					, FMT_VS(checker->vs)
 					, http->url_it + 1);
 				return epilog(thread, 1, 1, 0) + 1;
 		}
@@ -578,6 +589,8 @@ http_process_response(request_t *req, int r, int do_md5
 int
 http_read_thread(thread_t * thread)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker = THREAD_ARG(thread);
 	http_checker_t *http_get_check = CHECKER_ARG(checker);
 	http_t *http = HTTP_ARG(http_get_check);
@@ -606,8 +619,9 @@ http_read_thread(thread_t * thread)
 
 	/* Test if data are ready */
 	if (r == -1 && (errno == EAGAIN || errno == EINTR)) {
-		log_message(LOG_INFO, "Read error with server %s: %s"
+		log_message(LOG_INFO, "Read error with server %s in %s: %s"
 				    , FMT_HTTP_RS(checker)
+				    , FMT_VS(checker->vs)
 				    , strerror(errno));
 		thread_add_read(thread->master, http_read_thread, checker,
 				thread->u.fd, timeout);
@@ -686,6 +700,8 @@ http_response_thread(thread_t * thread)
 int
 http_request_thread(thread_t * thread)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker = THREAD_ARG(thread);
 	http_checker_t *http_get_check = CHECKER_ARG(checker);
 	http_t *http = HTTP_ARG(http_get_check);
@@ -742,9 +758,10 @@ http_request_thread(thread_t * thread)
 
 	FREE(request_host_port);
 
-	DBG("Processing url(%d) of %s.",
+	DBG("Processing url(%d) of %s in %s.",
 	    http->url_it + 1
-	    , FMT_HTTP_RS(checker));
+	    , FMT_HTTP_RS(checker)
+	    , FMT_VS(checker->vs));
 
 	/* Set descriptor non blocking */
 	val = fcntl(thread->u.fd, F_GETFL, 0);
@@ -778,6 +795,8 @@ http_request_thread(thread_t * thread)
 int
 http_check_thread(thread_t * thread)
 {
+	FMT_VS_BUF;
+
 	checker_t *checker = THREAD_ARG(thread);
 	http_checker_t *http_get_check = CHECKER_ARG(checker);
 	http_t *http = HTTP_ARG(http_get_check);
@@ -846,14 +865,15 @@ http_check_thread(thread_t * thread)
 				/* Remote WEB server is connected.
 				 * Register the next step thread ssl_request_thread.
 				 */
-				DBG("Remote Web server %s connected.", FMT_HTTP_RS(checker));
+				DBG("Remote Web server %s in %s connected.", FMT_HTTP_RS(checker), FMT_VS(checker->vs));
 				assert(thread_add_write(thread->master,
 						 http_request_thread, checker,
 						 thread->u.fd,
 						 checker->co->connection_to));
 			} else {
-				DBG("Connection trouble to: %s."
-						 , FMT_HTTP_RS(checker));
+				DBG("Connection trouble to: %s in %s."
+						 , FMT_HTTP_RS(checker)
+						 , FMT_VS(checker->vs));
 #ifdef _DEBUG_
 				if (http_get_check->proto == PROTO_SSL)
 					ssl_printerr(SSL_get_error

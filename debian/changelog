@@ -1,3 +1,16 @@
+keepalived (1:1.2.21-ext-logging) bionic; urgency=medium
+
+  * add VS information in check events
+
+ -- Andrey Kiselev <ezhichek@yandex-team.ru>  Fri, 30 Aug 2019 17:22:01 +0300
+
+keepalived (1:1.2.20-gre-gue) bionic; urgency=medium
+
+  * add support for GRE and GUE encapsulation
+  * add support for per RS send method
+
+ -- Vadim Fedorenko <junk@yandex-team.ru>  Fri, 21 Jun 2019 14:29:32 +0300
+
 keepalived (1:1.2.19-mthread8) trusty; urgency=medium
 
   * supporting 'RS-Weight' value in headers
