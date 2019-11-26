@@ -35,6 +35,7 @@ int snmp_enable = 0; /* Enable SNMP support */
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/select.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include "scheduler.h"
 #include "memory.h"
@@ -60,6 +61,8 @@ thread_init_master(thread_master_t *master)
 	}
 	master->epollfd = epollfd;
 	timer_reset_lazy(TIME_NOW(master));
+
+	log_message(LOG_ERR, "thread_init_master: tid %l master %p", gettid(), (void *)master);	
 }
 
 thread_master_t *
@@ -69,6 +72,7 @@ thread_make_master(void)
 
 	new = (thread_master_t *) MALLOC(sizeof (thread_master_t));
 	thread_init_master(new);
+	log_message(LOG_ERR, "thread_make_master: tid %l master %p", gettid(), (void *)new);	
 	return new;
 }
 
@@ -166,6 +170,8 @@ thread_clean_unuse(thread_master_t * m)
 {
 	thread_t *thread;
 
+	log_message(LOG_ERR, "thread_clean_unuse: tid %l master %p", gettid(), (void *)m);	
+
 	thread = m->unuse.head;
 	while (thread) {
 		thread_t *t;
@@ -185,6 +191,7 @@ thread_clean_unuse(thread_master_t * m)
 static void
 thread_add_unuse(thread_master_t * m, thread_t * thread)
 {
+	log_message(LOG_ERR, "thread_add_unuse: tid %l master %p", gettid(), (void *)m);	
 	assert(m != NULL);
 	assert(thread->next == NULL);
 	assert(thread->prev == NULL);
@@ -197,6 +204,8 @@ static void
 thread_destroy_list(thread_master_t * m, thread_list_t *thread_list)
 {
 	thread_t *thread;
+
+	log_message(LOG_ERR, "thread_destroy_list: tid %l master %p", gettid(), (void *)m);	
 
 	thread = thread_list->head;
 
@@ -231,6 +240,8 @@ thread_destroy_tree(thread_master_t * m, struct rb_root * root)
 	thread_t *t;
 	struct rb_node *node = rb_first(root);
 
+	log_message(LOG_ERR, "thread_destroy_tree: tid %l master %p", gettid(), (void *)m);
+
 	while (node) {
 		t = rb_entry(node, thread_t, node);
 		node = rb_next(node);
@@ -259,9 +270,13 @@ thread_destroy_tree(thread_master_t * m, struct rb_root * root)
 void
 thread_destroy_queues(thread_master_t *m)
 {
+	log_message(LOG_ERR, "thread_destroy_queues (destory tree): tid %l master %p", gettid(), (void *)m);	
 	thread_destroy_tree(m, &m->wait);
+	log_message(LOG_ERR, "thread_destroy_queues (destroy event list): tid %l master %p", gettid(), (void *)m);	
 	thread_destroy_list(m, &m->event);
+	log_message(LOG_ERR, "thread_destroy_queues (destroy ready list): tid %l master %p", gettid(), (void *)m);	
 	thread_destroy_list(m, &m->ready);
+	log_message(LOG_ERR, "thread_destroy_queues (destroy snmp list): tid %l master %p", gettid(), (void *)m);	
 	thread_destroy_list(m, &m->snmp);
 
 	/* Clean garbage */
@@ -272,6 +287,8 @@ thread_destroy_queues(thread_master_t *m)
 void
 thread_cleanup_master(thread_master_t * m)
 {
+	log_message(LOG_ERR, "thread_cleanup_master: tid %l master %p", gettid(), (void *)m);	
+	
 	thread_destroy_queues(m);
 
 	/*
@@ -289,6 +306,7 @@ thread_cleanup_master(thread_master_t * m)
 void
 thread_destroy_master(thread_master_t * m)
 {
+	log_message(LOG_ERR, "thread_destroy_master: tid %l master %p", gettid(), (void *)m);	
 	thread_cleanup_master(m);
 	FREE(m);
 }
@@ -307,6 +325,8 @@ thread_t *
 thread_new(thread_master_t * m)
 {
 	thread_t *new;
+
+	log_message(LOG_ERR, "thread_new: tid %l master %p", gettid(), (void *)m);	
 
 	/* If one thread is already allocated return it */
 	if (m->unuse.head) {
@@ -328,6 +348,8 @@ thread_add_io(unsigned char type, thread_master_t * m,
 	struct epoll_event ev;
 
 	assert(m != NULL);
+
+	log_message(LOG_ERR, "thread_add_io: tid %l master %p", gettid(), (void *)m);	
 
 	thread = thread_new(m);
 	thread->type = type;
@@ -380,6 +402,7 @@ thread_add_timer(thread_master_t * m, int (*func) (thread_t *)
 
 	assert(m != NULL);
 
+	log_message(LOG_ERR, "thread_add_timer: tid %l master %p", gettid(), (void *)m);	
 	thread = thread_new(m);
 	thread->type = THREAD_TIMER;
 	thread->id = 0;
@@ -406,6 +429,7 @@ thread_add_child(thread_master_t * m, int (*func) (thread_t *)
 
 	assert(m != NULL);
 
+	log_message(LOG_ERR, "thread_add_child: tid %l master %p", gettid(), (void *)m);	
 	thread = thread_new(m);
 	thread->type = THREAD_CHILD;
 	thread->id = 0;
@@ -438,6 +462,7 @@ thread_add_event(thread_master_t * m, int (*func) (thread_t *)
 
 	assert(m != NULL);
 
+	log_message(LOG_ERR, "thread_add_event: tid %l master %p", gettid(), (void *)m);	
 	thread = thread_new(m);
 	thread->type = THREAD_EVENT;
 	thread->id = 0;
@@ -458,6 +483,7 @@ thread_add_terminate_event(thread_master_t * m)
 
 	assert(m != NULL);
 
+	log_message(LOG_ERR, "thread_add_terminate_event: tid %l master %p", gettid(), (void *)m);	
 	thread = thread_new(m);
 	thread->type = THREAD_TERMINATE;
 	thread->id = 0;
@@ -479,6 +505,8 @@ thread_cancel(thread_t * thread)
 	if (!thread)
 		return -1;
 	m = thread->master;
+
+	log_message(LOG_ERR, "thread_cancel: tid %l master %p", gettid(), (void *)m);	
 
 	switch (thread->type) {
 	case THREAD_READ:
@@ -523,6 +551,8 @@ thread_cancel_event(thread_master_t * m, void *arg)
 {
 	thread_t *thread;
 
+	log_message(LOG_ERR, "thread_cancel_event: tid %l master %p", gettid(), (void *)m);	
+
 	thread = m->event.head;
 	while (thread) {
 		thread_t *t;
@@ -559,6 +589,7 @@ thread_compute_timer(thread_master_t * m, timeval_t * timer_wait)
 {
 	timeval_t timer_min;
 
+	log_message(LOG_ERR, "thread_compute_timer: tid %l master %p", gettid(), (void *)m);	
 	/* Prepare timer */
 	timer_reset(timer_min);
 	thread_update_timer(&m->wait, &timer_min);
@@ -587,6 +618,7 @@ process_timeout_threads(thread_master_t *m)
 	struct rb_root *root = &m->wait;
 	thread_t *t;
 
+	log_message(LOG_ERR, "process_timeout_threads: tid %l master %p", gettid(), (void *)m);	
 	while ((node = rb_first(root))) {
 		t = rb_entry(node, thread_t, node);
 		if (timer_cmp(TIME_NOW(m), t->sands) < 0)
@@ -627,6 +659,8 @@ register_signal_reader(thread_master_t * m)
 {
 	int signal_fd;
 	struct epoll_event ev;
+
+	log_message(LOG_ERR, "register_signal_reader: tid %l master %p", gettid(), (void *)m);	
 
 	signal_fd = signal_rfd();
 	ev.events = EPOLLIN;
@@ -700,6 +734,7 @@ thread_fetch(thread_master_t * m, thread_t * fetch)
 
 	assert(m != NULL);
 
+	log_message(LOG_ERR, "thread_fetch: tid %l master %p", gettid(), (void *)m);	
 	/* Timer initialization */
 	memset(&timer_wait, 0, sizeof (timeval_t));
 
@@ -837,6 +872,7 @@ thread_child_handler(void * v, int sig)
 	thread_list_t *list;
 	thread_t *t;
 
+	log_message(LOG_ERR, "thread_child_handler: tid %l master %p", gettid(), (void *)m);	
 	/*
 	 * This is O(n^2), but there will only be a few entries on
 	 * this list.
@@ -897,6 +933,8 @@ launch_scheduler(void)
 	 * Processing the master thread queues,
 	 * return and execute one ready thread.
 	 */
+ 	log_message(LOG_ERR, "launch scheduler: tid %l master %p", gettid(), (void *)master);	
+
 	while (thread_fetch(master, &thread)) {
 		/* Run until error, used for debuging only */
 #ifdef _DEBUG_
@@ -915,5 +953,6 @@ launch_scheduler(void)
 inline void
 set_time_master(thread_master_t *master)
 {
+	log_message(LOG_ERR, "set_time_master: tid %l master %p", gettid(), (void *)master);	
 	set_time(&master->tstore);
 }
