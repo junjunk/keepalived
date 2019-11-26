@@ -36,6 +36,7 @@ int snmp_enable = 0; /* Enable SNMP support */
 #include <sys/wait.h>
 #include <sys/select.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 #include "scheduler.h"
 #include "memory.h"
@@ -44,6 +45,11 @@ int snmp_enable = 0; /* Enable SNMP support */
 #include "logger.h"
 #include "bitops.h"
 
+#ifdef SYS_gettid
+#define gettid() syscall(SYS_gettid)
+#else
+#error "SYS_gettid unavailable on this system"
+#endif
 /* global vars */
 thread_master_t *master = NULL;
 
