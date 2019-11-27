@@ -35,6 +35,16 @@
 #include "timer.h"
 #include "rbtree.h"
 
+
+#define CHECKTID(m)  do {  \
+						pid_t tid = gettid(); \
+						assert(m != NULL); \
+						if (m->last_tid && m->last_tid != tid) { \
+							log_message(LOG_ERR, "%s: tid %i master %p", (char *)__FUNCTION__, tid, (void *)(m)); \
+							m->last_tid = tid; \
+						} \
+					} while (0)
+
 /* Thread itself. */
 typedef struct _thread {
 	unsigned long id;
@@ -80,6 +90,7 @@ typedef struct _thread_master {
 	unsigned long alloc;
 	time_storage_t tstore;
 	int stop_flag;
+	pid_t last_tid;
 } thread_master_t;
 #define TIME_NOW(m) (m->tstore.now)
 
