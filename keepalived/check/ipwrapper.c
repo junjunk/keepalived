@@ -459,6 +459,7 @@ update_svr_wgt(int weight, virtual_server_t * vs, real_server_t * rs
 	FMT_VS_BUF;
 
 	if (weight != rs->weight) {
+		lock(&vs->state_lock);
 		log_message(LOG_INFO, "Changing weight from %d to %d for %s service %s of VS %s"
 				    , rs->weight
 				    , weight
@@ -477,6 +478,7 @@ update_svr_wgt(int weight, virtual_server_t * vs, real_server_t * rs
 			ipvs_cmd(LVS_CMD_EDIT_DEST, vs, rs);
 		if (update_quorum)
 			update_quorum_state(vs);
+		unlock(&vs->state_lock);
 	}
 }
 
