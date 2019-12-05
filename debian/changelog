@@ -1,3 +1,9 @@
+keepalived (1:1.2.21-ttl) bionic; urgency=medium
+
+  * set ttl=2 for tunneled checks
+
+ -- Vadim Fedorenko <junk@yandex-team.ru>  Mon, 20 Jan 2020 16:05:43 +0300
+
 keepalived (1:1.2.21-ext-logging) bionic; urgency=medium
 
   * add VS information in check events

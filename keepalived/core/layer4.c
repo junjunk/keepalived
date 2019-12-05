@@ -26,6 +26,30 @@
 #include "logger.h"
 
 enum connect_result
+tcp_ttl_setup(int fd, conn_opts_t *co)
+{
+	int ttl = 2;
+	int ret;
+
+	switch (((struct sockaddr *) &co->dst)->sa_family) {
+		case AF_INET:
+			ret = setsockopt (fd, SOL_IP, IP_TTL, &ttl, sizeof (ttl));
+			break;
+		case AF_INET6:
+			ret = setsockopt (fd, SOL_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof (ttl));
+			break;
+		default:
+			ret = 0;
+			break;
+	}
+	if (ret < 0) {
+		log_message(LOG_ERR, "Error setting TTL %d to socket: %s", ttl, strerror(errno));
+		return connect_error;
+	}
+	return connect_success;
+}
+
+enum connect_result
 tcp_bind_connect(int fd, conn_opts_t *co)
 {
 	struct linger li = { 0 };

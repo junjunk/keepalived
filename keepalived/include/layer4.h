@@ -45,6 +45,9 @@ enum connect_result {
 
 /* Prototypes defs */
 extern enum connect_result
+tcp_ttl_setup(int fd, conn_opts_t *co);
+
+extern enum connect_result
  tcp_bind_connect(int, conn_opts_t *);
 
 extern enum connect_result

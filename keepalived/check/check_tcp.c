@@ -218,6 +218,10 @@ tcp_connect_thread(thread_t * thread)
 		return 0;
 	}
 
+	if (checker->vs->loadbalancing_kind == IP_VS_CONN_F_TUNNEL) {
+		status = tcp_ttl_setup(fd, co);
+	}
+
 	status = tcp_bind_connect(fd, co);
 
 	/* handle tcp connection status & register check worker thread */
